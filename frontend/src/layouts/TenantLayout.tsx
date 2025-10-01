@@ -18,10 +18,10 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { logoutRequest } from "@/api/authApi";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useAuthStore } from "@/stores/useAuthStore";
-import { logoutRequest } from "@/api/authApi";
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead, type Notification } from "@/api/notificationApi";
 
 // Sidebar configuration for tenants
@@ -92,9 +92,19 @@ const Sidebar = ({
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    toast.success("Logged out successfully");
-    navigate("/", { replace: true });
+  const handleLogout = async () => {
+    try {
+      await logoutRequest(); // ✅ call backend
+    } catch (err: any) {
+      console.error("Logout request failed:", err);
+    } finally {
+      // ✅ clear Zustand store
+      const { clearUser } = useAuthStore.getState();
+      clearUser();
+
+      toast.success("Logged out successfully");
+      navigate("/auth/login", { replace: true });
+    }
   };
 
   return (
@@ -240,7 +250,7 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
       const response = await getNotifications({ limit: 10 });
       setNotifications(response.notifications);
       setUnreadCount(response.unreadCount);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching notifications:", error);
       // Only show error toast for actual API failures, not for empty results
       if (error.response?.status >= 500) {
