@@ -8,6 +8,8 @@ import cors from "cors";
 import morgan from "morgan";
 import authRoutes from './routes/authRoutes.js'
 import landlordRoutes from './routes/landlordRoutes.js'
+import tenantRoutes from './routes/tenantRoutes.js'
+import chatbotRoutes from './routes/chatbotRoutes.js'
 import { globalLimiter } from "./middlewares/requestRateLimiter.js";
 import cookieParser from "cookie-parser";
 
@@ -34,7 +36,9 @@ app.use(cookieParser()); // Parse cookies
 // ------------------------------
 
 app.use("/api/auth", authRoutes); // Auth routes
-app.use("/api/landlord/", landlordRoutes); // Auth routes
+app.use("/api/landlord/", landlordRoutes); // Landlord routes
+app.use("/api/tenant/", tenantRoutes); // Tenant routes
+app.use("/api/chatbot", chatbotRoutes); // Chatbot routes
 
 
 // Default route (health check / welcome route)

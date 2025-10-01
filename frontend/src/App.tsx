@@ -77,6 +77,15 @@ const BehaviorReport = lazy(() => import("./pages/private/landlord/tenant/Behavi
 const TenantDashboard = lazy(
   () => import("./pages/private/tenant/TenantDashboard")
 );
+const MyLease = lazy(
+  () => import("./pages/private/tenant/MyLease")
+);
+const TenantPayments = lazy(
+  () => import("./pages/private/tenant/Payments")
+);
+const TenantMaintenance = lazy(
+  () => import("./pages/private/tenant/Maintenance")
+);
 const BrowseProperties = lazy(
   () => import("./pages/private/tenant/BrowseProperties")
 );
@@ -453,6 +462,30 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loader />}>
             <Messages />
+          </Suspense>
+        ),
+      },
+      {
+        path: "lease",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <MyLease />
+          </Suspense>
+        ),
+      },
+      {
+        path: "payments",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <TenantPayments />
+          </Suspense>
+        ),
+      },
+      {
+        path: "maintenance",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <TenantMaintenance />
           </Suspense>
         ),
       },

@@ -2,7 +2,8 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Home, Search, MapPin, BedDouble, Maximize, Filter, ChevronLeft, ChevronRight, MessageCircle, Eye, Star } from "lucide-react";
+import { Home, Search, MapPin, BedDouble, Maximize, Filter, ChevronLeft, ChevronRight, Eye, Star } from "lucide-react";
+import Chatbot from "@/components/Chatbot";
 
 type Amenity = { id: string; name: string };
 type City = { id: string; name: string };
@@ -244,33 +245,6 @@ const BrowseProperties = () => {
     setPage(clamped);
   }
 
-  // Simple AI Chatbot widget (mock)
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState("");
-  const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
-    { role: "assistant", content: "Hi! I can help you find a property. Try '2BR in Cebu with wifi'" },
-  ]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, chatOpen]);
-
-  const sendChat = () => {
-    const text = chatInput.trim();
-    if (!text) return;
-    setMessages((m) => [...m, { role: "user", content: text }]);
-    setChatInput("");
-    // very naive mock parsing
-    setTimeout(() => {
-      const lower = text.toLowerCase();
-      const suggested: string[] = [];
-      if (lower.includes("2br") || lower.includes("2 br") || lower.includes("2 bedrooms")) suggested.push("Bedrooms: 2");
-      if (lower.includes("wifi")) suggested.push("Amenity: wifi");
-      if (lower.includes("cebu")) suggested.push("City: Cebu City");
-      const reply = suggested.length > 0
-        ? `Try filtering: ${suggested.join(", ")}`
-        : "Try keywords like '1BR', 'wifi', 'Cebu City', 'parking'";
-      setMessages((m) => [...m, { role: "assistant", content: reply }]);
-    }, 500);
-  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
@@ -585,51 +559,8 @@ const BrowseProperties = () => {
         </Card>
       )}
 
-      {/* AI Chatbot widget */}
-      <div className="fixed bottom-4 right-4 z-50">
-        {chatOpen ? (
-          <Card className="w-80 max-w-[calc(100vw-2rem)] shadow-2xl rounded-xl overflow-hidden">
-            <div className="p-3 bg-gradient-to-r from-emerald-600 to-sky-600 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2 font-semibold">
-                <MessageCircle className="h-4 w-4" /> Ask AI • Helper
-              </div>
-              <button className="text-white/90 hover:text-white text-sm" onClick={() => setChatOpen(false)}>Close</button>
-            </div>
-            <div className="p-3 border-b border-gray-200">
-              <div className="flex flex-wrap gap-2">
-                {['Studios under 10k', '2BR with wifi', 'Near Cebu City', 'Parking + AC'].map((s) => (
-                  <button key={s} onClick={() => { setChatInput(s); setTimeout(() => sendChat(), 0); }} className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100">
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="p-3 h-72 overflow-y-auto space-y-2 bg-white">
-              {messages.map((m, idx) => (
-                <div key={idx} className={`${m.role === 'assistant' ? 'bg-gray-50' : 'bg-emerald-50'} p-2 rounded-md text-sm text-gray-800`}>
-                  {m.content}
-                </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-            <div className="p-3 border-t border-gray-200 flex gap-2">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') sendChat(); }}
-                placeholder="Ask for wifi 2BR in Cebu..."
-                className="flex-1 px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-              />
-              <Button size="sm" onClick={sendChat}>Send</Button>
-            </div>
-          </Card>
-        ) : (
-          <Button onClick={() => setChatOpen(true)} className="gap-2 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 shadow-lg">
-            <MessageCircle className="h-4 w-4" />
-            Ask AI
-          </Button>
-        )}
-      </div>
+      {/* Twitter-style Chatbot */}
+      <Chatbot />
     </div>
   );
 };
