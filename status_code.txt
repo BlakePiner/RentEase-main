@@ -1,0 +1,62 @@
+🌐 Most Useful HTTP Status Codes for APIs
+🟢 Success (2xx)
+
+200 OK → Standard success. (GET success, update success)
+
+201 Created → Resource successfully created. (User registered, post created)
+
+202 Accepted → Request accepted but not processed yet. (Async jobs, queue)
+
+204 No Content → Success, but no body. (DELETE success, empty update)
+
+
+
+
+
+🟡 Redirection (3xx)
+
+301 Moved Permanently → Resource permanently moved.
+
+302 Found → Temporary redirect.
+
+304 Not Modified → Use cached version (common with ETags / caching).
+
+
+
+🔴 Client Errors (4xx)
+
+400 Bad Request → Invalid input / malformed request.
+
+401 Unauthorized → Not logged in / invalid token.
+
+403 Forbidden → Logged in but not allowed.
+
+404 Not Found → Resource doesn’t exist.
+
+405 Method Not Allowed → Wrong HTTP method (e.g., POST on a GET route).
+
+408 Request Timeout → Client took too long to send request.
+
+409 Conflict → Conflict in state (duplicate email, version mismatch).
+
+410 Gone → Resource permanently deleted.
+
+413 Payload Too Large → File upload/request too big.
+
+415 Unsupported Media Type → Wrong content type (sent XML, expected JSON).
+
+422 Unprocessable Entity → Validation failed (form errors, invalid fields).
+
+429 Too Many Requests → Rate limit exceeded.
+
+⚫ Server Errors (5xx)
+
+500 Internal Server Error → Generic backend crash.
+
+501 Not Implemented → Endpoint not ready / unsupported feature.
+
+502 Bad Gateway → Invalid response from upstream (e.g., API gateway).
+
+503 Service Unavailable → Server down / overloaded / maintenance.
+
+504 Gateway Timeout → Upstream server didn’t respond in time.

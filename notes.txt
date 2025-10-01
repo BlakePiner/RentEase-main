@@ -1,0 +1,14 @@
+npx shadcn@latest add button
+
+# 1. reset schema migration:  
+npx prisma migrate reset
+
+# 2. Generate a new migration
+npx prisma migrate dev --name your-migration-name
+
+# 3. Push to Supabase (Optional if not using dev: If you want to apply schema changes without generating migrations (not ideal for teams or prod), you can do:)
+npx prisma db push
+
+
+# 4. Generate latest Prisma Client If you're only editing Prisma schema but didn't run a migration yet:
+    npx prisma generate

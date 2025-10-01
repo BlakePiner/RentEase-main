@@ -1,0 +1,10 @@
+    "General Policies",
+    "Visitor Policies",
+    "Payment Policies",
+    "Maintenance Policies",
+    "Safety Policies",
+    "Noise Policies",
+    "Pet Policies",
+    "Cleaning Policies",
+    "Parking Policies",
+    "Other Policies"
