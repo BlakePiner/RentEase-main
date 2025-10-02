@@ -217,3 +217,239 @@ export const getTenantMaintenanceRequests = async (params?: { signal?: AbortSign
   });
   return response;
 };
+
+// Browse Properties Types
+export interface BrowseProperty {
+  id: string;
+  title: string;
+  type: string;
+  street: string;
+  barangay: string;
+  zipCode: string | null;
+  mainImageUrl: string | null;
+  nearInstitutions: any;
+  createdAt: string;
+  address: string;
+  location: string;
+  availableUnitsCount: number;
+  totalViews: number;
+  priceRange: {
+    min: number;
+    max: number;
+  };
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comment: string;
+    createdAt: string;
+    tenantName: string;
+  }>;
+  avgRating: number;
+  reviewCount: number;
+  amenities: Array<{
+    id: string;
+    name: string;
+    category: string;
+  }>;
+  sampleUnit: {
+    id: string;
+    label: string;
+    maxOccupancy: number;
+    floorNumber: number | null;
+  } | null;
+}
+
+export interface BrowsePropertiesResponse {
+  properties: BrowseProperty[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+// Property Details Types
+export interface PropertyUnit {
+  id: string;
+  label: string;
+  description: string;
+  status: "AVAILABLE" | "OCCUPIED" | "MAINTENANCE";
+  mainImageUrl: string | null;
+  otherImages: any;
+  viewCount: number;
+  targetPrice: number;
+  securityDeposit: number;
+  maxOccupancy: number;
+  floorNumber: number | null;
+  unitLeaseRules: any;
+  requiresScreening: boolean;
+  createdAt: string;
+  listedAt: string;
+  amenities: Array<{
+    id: string;
+    name: string;
+    category: string;
+  }>;
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comment: string;
+    createdAt: string;
+    tenantName: string;
+  }>;
+  avgRating: number;
+  reviewCount: number;
+}
+
+export interface PropertyDetails {
+  id: string;
+  title: string;
+  type: string;
+  street: string;
+  barangay: string;
+  zipCode: string | null;
+  mainImageUrl: string | null;
+  nearInstitutions: any;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+  address: string;
+  location: string;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+    phoneNumber: string | null;
+    avatarUrl: string | null;
+  };
+  availableUnits: PropertyUnit[];
+  totalAvailableUnits: number;
+  priceRange: {
+    min: number;
+    max: number;
+  };
+  totalViews: number;
+  allAmenities: Array<{
+    id: string;
+    name: string;
+    category: string;
+  }>;
+  allReviews: Array<{
+    id: string;
+    rating: number;
+    comment: string;
+    createdAt: string;
+    tenantName: string;
+    unitLabel: string;
+  }>;
+  avgRating: number;
+  totalReviews: number;
+}
+
+// Browse Properties API
+export const browseApprovedPropertiesRequest = async (params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  location?: string;
+  amenities?: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  propertyType?: string;
+  sortBy?: string;
+  signal?: AbortSignal;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.append('page', params.page.toString());
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.search) queryParams.append('search', params.search);
+  if (params.location) queryParams.append('location', params.location);
+  if (params.amenities && params.amenities.length > 0) {
+    params.amenities.forEach(amenity => queryParams.append('amenities', amenity));
+  }
+  if (params.minPrice) queryParams.append('minPrice', params.minPrice.toString());
+  if (params.maxPrice) queryParams.append('maxPrice', params.maxPrice.toString());
+  if (params.propertyType) queryParams.append('propertyType', params.propertyType);
+  if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+
+  const response = await privateApi.get<BrowsePropertiesResponse>(`/tenant/browse-properties?${queryParams.toString()}`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+// Get Property Details API
+export const getPropertyDetailsRequest = async (propertyId: string, params?: { signal?: AbortSignal }) => {
+  const response = await privateApi.get<PropertyDetails>(`/tenant/properties/${propertyId}`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+// Application Types
+export interface TenantApplication {
+  id: string;
+  status: string;
+  submittedAt: string;
+  riskLevel: string;
+  aiRiskScore: number;
+  unit: {
+    id: string;
+    label: string;
+    targetPrice: number;
+    property: {
+      id: string;
+      title: string;
+      address: string;
+      location: string;
+      mainImageUrl: string | null;
+    };
+  };
+}
+
+export interface ApplicationFormData {
+  // Personal Information
+  fullName?: string;
+  birthdate?: string;
+  governmentIdNumber?: string;
+  
+  // Employment & Financial
+  employmentStatus?: string;
+  employerName?: string;
+  monthlyIncome?: number;
+  
+  // Background & References
+  previousLandlordName?: string;
+  previousLandlordContact?: string;
+  rentalHistoryNotes?: string;
+  characterReferences?: any;
+  
+  // Lifestyle
+  isSmoker?: boolean;
+  hasPets?: boolean;
+  petTypes?: string;
+  otherLifestyle?: any;
+  
+  // Document URLs (if uploaded)
+  idImageUrl?: string;
+  selfieUrl?: string;
+  nbiClearanceUrl?: string;
+  biodataUrl?: string;
+  proofOfIncomeUrl?: string;
+}
+
+// Application API functions
+export const submitTenantApplicationRequest = async (unitId: string, applicationData: ApplicationFormData) => {
+  const response = await privateApi.post(`/tenant/applications/${unitId}`, applicationData);
+  return response;
+};
+
+export const getTenantApplicationsRequest = async (params?: { signal?: AbortSignal }) => {
+  const response = await privateApi.get<TenantApplication[]>("/tenant/applications", {
+    signal: params?.signal,
+  });
+  return response;
+};

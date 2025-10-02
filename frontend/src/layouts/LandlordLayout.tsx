@@ -245,6 +245,7 @@ const Sidebar = ({
 
 const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [notifsOpen, setNotifsOpen] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<
     { name: string; path?: string }[]
@@ -324,6 +325,18 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
         console.error("Error marking notification as read:", error);
       }
     }
+    
+    // Navigate based on notification type
+    if (notification.type === 'APPLICATION') {
+      navigate('/landlord/tenants');
+    } else if (notification.type === 'LEASE') {
+      navigate('/landlord/leases');
+    } else if (notification.type === 'PAYMENT') {
+      navigate('/landlord/payments');
+    } else if (notification.type === 'MAINTENANCE') {
+      navigate('/landlord/maintenance');
+    }
+    
     setNotifsOpen(false);
   };
 

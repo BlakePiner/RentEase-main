@@ -20,7 +20,7 @@ export const requestListing = async (req, res) => {
     if (unit.propertyId !== propertyId) {
       return res.status(400).json({ error: "Unit does not belong to this property" });
     }
-    if (unit.property.landlordId !== landlordId) {
+    if (unit.property.ownerId !== landlordId) {
       return res.status(403).json({ error: "You do not own this property" });
     }
     if (unit.status !== "AVAILABLE") {
@@ -54,7 +54,9 @@ export const requestListing = async (req, res) => {
         status: "PENDING",
         attemptCount: lastListing ? lastListing.attemptCount + 1 : 1,
         amount: 1000, // you can calculate/listing fee logic here
-        paymentStatus: "UNPAID"
+        paymentStatus: "UNPAID",
+        riskLevel: "LOW", // default risk level
+        fraudRiskScore: 0.1 // default low risk score
       }
     });
 
@@ -88,7 +90,7 @@ export const getUnitsListingStatus = async (req, res) => {
     const units = await prisma.unit.findMany({
       where: {
         propertyId,
-        property: { landlordId }
+        property: { ownerId: landlordId }
       },
       include: {
         listings: {

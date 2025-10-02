@@ -40,7 +40,9 @@ import {
   runTenantScreening, 
   getScreeningResults, 
   generateBehaviorReport, 
-  getTenantStats 
+  getTenantStats,
+  updateTenantApplicationStatus,
+  removeTenant
 } from "../controllers/landlord/tenantController.js";
 import { 
   getLandlordConversations, 
@@ -130,6 +132,8 @@ router.get("/tenants/:tenantId", requireAuthentication(["LANDLORD"]), getTenantD
 router.post("/tenants/screening", requireAuthentication(["LANDLORD"]), runTenantScreening);                      // run automated tenant screening
 router.get("/tenants/:tenantId/screening", requireAuthentication(["LANDLORD"]), getScreeningResults);            // get screening results for tenant
 router.get("/tenants/:tenantId/behavior-report", requireAuthentication(["LANDLORD"]), generateBehaviorReport);   // generate behavior analysis report
+router.patch("/tenants/applications/:applicationId", requireAuthentication(["LANDLORD"]), updateTenantApplicationStatus); // approve/reject tenant application
+router.delete("/tenants/:tenantId", requireAuthentication(["LANDLORD"]), removeTenant);                             // remove/delete tenant
 
 // ---------------------------- Messages
 router.get("/messages", requireAuthentication(["LANDLORD"]), getLandlordConversations);                          // get all conversations

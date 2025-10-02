@@ -29,7 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getUnitDetailsRequest, deleteUnitRequest } from "@/api/landlordPropertyApi";
+import { getUnitDetailsRequest, deleteUnitRequest, requestListingRequest } from "@/api/landlordPropertyApi";
 import { toast } from "sonner";
 
 // Types based on your backend response
@@ -229,15 +229,34 @@ const UnitDetails = () => {
   };
 
   // Toggle listing status
-  const toggleListing = () => {
-    if (unit) {
-      const newListedAt = unit.listedAt ? null : new Date().toISOString();
+  const toggleListing = async () => {
+    if (!unit || !propertyId || !unitId) {
+      toast.error("Missing required information");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Create a listing request that goes to admin for approval
+      await requestListingRequest(propertyId, unitId, {
+        notes: "Listing request submitted from unit details page"
+      });
+
+      toast.success("Listing request submitted successfully! It will be reviewed by admin.");
+      
+      // Update local state to reflect the request was submitted
       setUnit(prev => prev ? {
         ...prev,
-        listedAt: newListedAt,
-        isListed: !prev.isListed
+        listedAt: new Date().toISOString(),
+        isListed: true
       } : null);
-      // In real app, this would call an API
+      
+    } catch (error: any) {
+      console.error("Error submitting listing request:", error);
+      toast.error(error.response?.data?.error || "Failed to submit listing request");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -460,10 +479,15 @@ const UnitDetails = () => {
                   </p>
                   <Button 
                     onClick={toggleListing}
+                    disabled={loading}
                     className="bg-blue-600 hover:bg-blue-700"
                   >
-                    <Globe className="h-4 w-4 mr-2" />
-                    List Your Property Now
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Globe className="h-4 w-4 mr-2" />
+                    )}
+                    {loading ? "Submitting Request..." : "List Your Property Now"}
                   </Button>
                 </div>
               </div>

@@ -69,7 +69,7 @@ const Maintenance = lazy(() => import("./pages/private/landlord/Maintenance"));
 const MaintenanceDetails = lazy(() => import("./pages/private/landlord/maintenance/MaintenanceDetails"));
 
 // Tenant management pages
-const Tenants = lazy(() => import("./pages/private/landlord/Tenants"));
+const Tenants = lazy(() => import("./pages/private/landlord/TenantsRefined"));
 const TenantDetails = lazy(() => import("./pages/private/landlord/tenant/TenantDetails"));
 const BehaviorReport = lazy(() => import("./pages/private/landlord/tenant/BehaviorReport"));
 
@@ -89,10 +89,16 @@ const TenantMaintenance = lazy(
 const BrowseProperties = lazy(
   () => import("./pages/private/tenant/BrowseProperties")
 );
+const TenantPropertyDetails = lazy(
+  () => import("./pages/private/tenant/PropertyDetails")
+);
 
 // Private pages - Admin
 const AdminDashboard = lazy(
   () => import("./pages/private/admin/AdminDashboard")
+);
+const PropertyRequests = lazy(
+  () => import("./pages/private/admin/PropertyRequests")
 );
 
 // Shared private pages
@@ -489,6 +495,14 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
+      {
+        path: "properties/:propertyId",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <TenantPropertyDetails />
+          </Suspense>
+        ),
+      },
     ],
   },
   {
@@ -522,6 +536,14 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loader />}>
             <AccountProfile />
+          </Suspense>
+        ),
+      },
+      {
+        path: "property-requests",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <PropertyRequests />
           </Suspense>
         ),
       },

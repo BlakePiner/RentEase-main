@@ -29,6 +29,16 @@ import {
   type ConversationWithMessages,
   type MessageStats
 } from "@/api/landlordMessageApi";
+import {
+  getTenantConversationsRequest,
+  getTenantConversationMessagesRequest,
+  sendTenantMessageRequest,
+  getTenantMessageStatsRequest,
+  type Conversation as TenantConversation,
+  type Message as TenantMessage,
+  type ConversationWithMessages as TenantConversationWithMessages,
+  type MessageStats as TenantMessageStats
+} from "@/api/tenantMessageApi";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { toast } from "sonner";
 
@@ -88,11 +98,18 @@ const Messages = () => {
   useEffect(() => {
     const controller = new AbortController();
     const fetchData = async () => {
+      if (!user) return;
+      
       setLoading(true);
       try {
+        const isLandlord = user.role === "LANDLORD";
         const [conversationsRes, statsRes] = await Promise.all([
-          getLandlordConversationsRequest({ signal: controller.signal }),
-          getMessageStatsRequest({ signal: controller.signal }),
+          isLandlord 
+            ? getLandlordConversationsRequest({ signal: controller.signal })
+            : getTenantConversationsRequest({ signal: controller.signal }),
+          isLandlord 
+            ? getMessageStatsRequest({ signal: controller.signal })
+            : getTenantMessageStatsRequest({ signal: controller.signal }),
         ]);
         setConversations(conversationsRes.data);
         setStats(statsRes.data);
@@ -108,11 +125,11 @@ const Messages = () => {
 
     fetchData();
     return () => controller.abort();
-  }, []);
+  }, [user]);
 
   // Fetch messages when conversation is selected
   useEffect(() => {
-    if (!selectedConversation) {
+    if (!selectedConversation || !user) {
       setMessages([]);
       return;
     }
@@ -120,7 +137,10 @@ const Messages = () => {
     const controller = new AbortController();
     const fetchMessages = async () => {
       try {
-        const response = await getConversationMessagesRequest(selectedConversation.id, { signal: controller.signal });
+        const isLandlord = user.role === "LANDLORD";
+        const response = isLandlord 
+          ? await getConversationMessagesRequest(selectedConversation.id, { signal: controller.signal })
+          : await getTenantConversationMessagesRequest(selectedConversation.id, { signal: controller.signal });
         setMessages(response.data.messages);
       } catch (err: any) {
         if (err.name !== "AbortError") {
@@ -132,20 +152,26 @@ const Messages = () => {
 
     fetchMessages();
     return () => controller.abort();
-  }, [selectedConversation]);
+  }, [selectedConversation, user]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation || sendingMessage) return;
+    if (!newMessage.trim() || !selectedConversation || sendingMessage || !user) return;
 
     const messageContent = newMessage.trim();
     setNewMessage("");
     setSendingMessage(true);
 
     try {
-      const response = await sendMessageRequest({
-        conversationId: selectedConversation.id,
-        content: messageContent,
-      });
+      const isLandlord = user.role === "LANDLORD";
+      const response = isLandlord 
+        ? await sendMessageRequest({
+            conversationId: selectedConversation.id,
+            content: messageContent,
+          })
+        : await sendTenantMessageRequest({
+            conversationId: selectedConversation.id,
+            content: messageContent,
+          });
 
       // Add the new message to the messages list
       setMessages(prev => [...prev, response.data.message]);
@@ -173,14 +199,21 @@ const Messages = () => {
   };
 
   const handleDeleteConversation = async (conversationId: string) => {
+    if (!user) return;
+    
     try {
-      await deleteConversationRequest(conversationId);
-      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
-      if (selectedConversation?.id === conversationId) {
-        setSelectedConversation(null);
-        setMessages([]);
+      // Only landlords can delete conversations for now
+      if (user.role === "LANDLORD") {
+        await deleteConversationRequest(conversationId);
+        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+        if (selectedConversation?.id === conversationId) {
+          setSelectedConversation(null);
+          setMessages([]);
+        }
+        toast.success("Conversation deleted successfully");
+      } else {
+        toast.error("Only landlords can delete conversations");
       }
-      toast.success("Conversation deleted successfully");
     } catch (err: any) {
       console.error("Error deleting conversation:", err);
       toast.error("Failed to delete conversation");
@@ -300,17 +333,19 @@ const Messages = () => {
                               {conversation.unreadCount}
                             </span>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowDeleteConversationConfirm(conversation.id);
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {user?.role === "LANDLORD" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDeleteConversationConfirm(conversation.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <p className="text-sm text-gray-600 truncate mt-1">
@@ -332,7 +367,9 @@ const Messages = () => {
                 <p className="text-sm text-gray-600">
                   {searchQuery 
                     ? "Try adjusting your search terms."
-                    : "Start a conversation with a tenant to see messages here."
+                    : user?.role === "LANDLORD" 
+                      ? "Start a conversation with a tenant to see messages here."
+                      : "Your conversations with landlords will appear here."
                   }
                 </p>
               </div>
@@ -363,13 +400,15 @@ const Messages = () => {
                     <p className="text-sm text-gray-600">{selectedConversation.otherUser.role}</p>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowDeleteConversationConfirm(selectedConversation.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {user?.role === "LANDLORD" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowDeleteConversationConfirm(selectedConversation.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
 

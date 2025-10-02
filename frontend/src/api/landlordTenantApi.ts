@@ -235,7 +235,7 @@ export interface RunScreeningData {
 
 // API functions
 export const getLandlordTenantsRequest = async (params?: { signal?: AbortSignal }) => {
-  const response = await privateApi.get<TenantWithBehavior[]>("/landlord/tenants", {
+  const response = await privateApi.get<TenantManagementItem[]>("/landlord/tenants", {
     signal: params?.signal,
   });
   return response;
@@ -271,5 +271,181 @@ export const generateBehaviorReportRequest = async (tenantId: string, reportType
   const response = await privateApi.get<BehaviorReport>(`/landlord/tenants/${tenantId}/behavior-report?reportType=${reportType}`, {
     signal: params?.signal,
   });
+  return response;
+};
+
+// Tenant Application Types
+export interface TenantApplication {
+  id: string;
+  type: 'APPLICATION';
+  status: 'PENDING_SCREENING';
+  submittedAt: string;
+  tenant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string | null;
+    avatarUrl: string | null;
+    createdAt: string;
+  };
+  unit: {
+    id: string;
+    label: string;
+    targetPrice: number;
+    property: {
+      id: string;
+      title: string;
+      address: string;
+      location: string;
+    };
+  };
+  applicationData: {
+    fullName: string;
+    birthdate: string | null;
+    governmentIdNumber: string | null;
+    employmentStatus: string | null;
+    employerName: string | null;
+    monthlyIncome: number | null;
+    previousLandlordName: string | null;
+    previousLandlordContact: string | null;
+    rentalHistoryNotes: string | null;
+    characterReferences: any;
+    isSmoker: boolean;
+    hasPets: boolean;
+    petTypes: string | null;
+    otherLifestyle: any;
+    idImageUrl: string | null;
+    selfieUrl: string | null;
+    nbiClearanceUrl: string | null;
+    biodataUrl: string | null;
+    proofOfIncomeUrl: string | null;
+  };
+  riskAssessment: {
+    aiRiskScore: number;
+    riskLevel: string;
+    aiScreeningSummary: string | null;
+  };
+}
+
+export interface ApprovedTenant {
+  id: string;
+  type: 'APPROVED_TENANT';
+  status: 'PENDING_LEASE_ACTIVATION';
+  tenant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string | null;
+    avatarUrl: string | null;
+    isVerified: boolean;
+    createdAt: string;
+    updatedAt: string;
+    fullName: string;
+  };
+  currentLease: {
+    id: string;
+    leaseNickname: string;
+    status: string;
+    rentAmount: number;
+    interval: string;
+    startDate: string;
+    endDate: string;
+    unit: {
+      id: string;
+      label: string;
+      status: string;
+      targetPrice: number;
+      property: {
+        id: string;
+        title: string;
+        address: string;
+        location: string;
+      };
+    };
+  } | null;
+  behaviorAnalysis: {
+    riskLevel: string;
+    paymentReliability: number;
+    totalPayments: number;
+    onTimePayments: number;
+    maintenanceRequestsCount: number;
+    recentMaintenanceCount: number;
+    hasFrequentComplaints: boolean;
+    aiRiskScore: number;
+    aiSummary: string;
+    lastAnalysisDate: string;
+  };
+  recentPayments: any[];
+  recentMaintenanceRequests: any[];
+}
+
+export interface ActiveTenant {
+  id: string;
+  type: 'TENANT';
+  status: 'ACTIVE';
+  tenant: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber: string | null;
+    avatarUrl: string | null;
+    isVerified: boolean;
+    createdAt: string;
+    updatedAt: string;
+    fullName: string;
+  };
+  currentLease: {
+    id: string;
+    leaseNickname: string;
+    status: string;
+    rentAmount: number;
+    interval: string;
+    startDate: string;
+    endDate: string;
+    unit: {
+      id: string;
+      label: string;
+      status: string;
+      targetPrice: number;
+      property: {
+        id: string;
+        title: string;
+        address: string;
+        location: string;
+      };
+    };
+  } | null;
+  behaviorAnalysis: {
+    riskLevel: string;
+    paymentReliability: number;
+    totalPayments: number;
+    onTimePayments: number;
+    maintenanceRequestsCount: number;
+    recentMaintenanceCount: number;
+    hasFrequentComplaints: boolean;
+    aiRiskScore: number;
+    aiSummary: string;
+    lastAnalysisDate: string;
+  };
+  recentPayments: any[];
+  recentMaintenanceRequests: any[];
+}
+
+export type TenantManagementItem = TenantApplication | ApprovedTenant | ActiveTenant;
+
+// Update tenant application status
+export const updateTenantApplicationStatusRequest = async (applicationId: string, data: {
+  status: 'APPROVED' | 'REJECTED';
+  notes?: string;
+}) => {
+  const response = await privateApi.patch(`/landlord/tenants/applications/${applicationId}`, data);
+  return response;
+};
+
+export const removeTenantRequest = async (tenantId: string) => {
+  const response = await privateApi.delete(`/landlord/tenants/${tenantId}`);
   return response;
 };
