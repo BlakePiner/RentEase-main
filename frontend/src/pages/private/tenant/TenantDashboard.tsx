@@ -174,12 +174,12 @@ const TenantDashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Welcome Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600 mt-2">
             Welcome back, {user?.firstName || "Tenant"}! Here's your rental overview.
           </p>
         </div>
@@ -200,7 +200,7 @@ const TenantDashboard = () => {
       </div>
 
       {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -278,74 +278,58 @@ const TenantDashboard = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Current Lease */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Home className="h-5 w-5" />
-              Current Lease
-            </CardTitle>
+        <Card className="xl:col-span-2">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Home className="h-5 w-5" />
+                Current Lease
+              </CardTitle>
+              {data.currentLease && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/tenant/lease">
+                    <Eye className="h-4 w-4 mr-2" />
+                    View Lease Details
+                  </Link>
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {data.currentLease ? (
               <div className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 text-lg">
-                      {data.currentLease.unit.property.title}
-                    </h3>
-                    <div className="flex items-center gap-1 mt-1">
-                      <MapPin className="h-4 w-4 text-gray-400" />
-                      <p className="text-sm text-gray-600">
-                        {data.currentLease.unit.property.address}
-                      </p>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Unit {data.currentLease.unit.label}
-                    </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-sm text-gray-600">Property:</span>
+                    <p className="font-medium text-gray-900">{data.currentLease.unit.property.title}</p>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className={`text-xs ${getStatusColor(data.currentLease.status)}`}
-                  >
-                    {data.currentLease.status}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Monthly Rent</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {formatCurrency(data.currentLease.monthlyRent)}
-                    </p>
+                  <div className="space-y-1">
+                    <span className="text-sm text-gray-600">Unit:</span>
+                    <p className="font-medium text-gray-900">{data.currentLease.unit.label}</p>
                   </div>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Security Deposit</p>
-                    <p className="text-lg font-semibold text-gray-900">
-                      {formatCurrency(data.currentLease.securityDeposit)}
+                  <div className="space-y-1">
+                    <span className="text-sm text-gray-600">Tenant:</span>
+                    <p className="font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-sm text-gray-600">Rent:</span>
+                    <p className="font-medium text-gray-900">
+                      {formatCurrency(data.currentLease.rentAmount)} {data.currentLease.interval.toLowerCase()}
                     </p>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-600">Lease Start</p>
-                    <p className="font-medium">{formatDate(data.currentLease.startDate)}</p>
+                <div className="pt-3 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Status:</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${getStatusColor(data.currentLease.status)}`}
+                    >
+                      {data.currentLease.status}
+                    </Badge>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Lease End</p>
-                    <p className="font-medium">{formatDate(data.currentLease.endDate)}</p>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-gray-200">
-                  <Button variant="outline" className="w-full" asChild>
-                    <Link to="/tenant/lease">
-                      View Lease Details
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </Link>
-                  </Button>
                 </div>
               </div>
             ) : (
@@ -420,7 +404,7 @@ const TenantDashboard = () => {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-6">
         {/* Recent Payments */}
         <Card>
           <CardHeader>

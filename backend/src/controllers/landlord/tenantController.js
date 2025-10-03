@@ -542,7 +542,7 @@ export const getTenantDetails = async (req, res) => {
               }
             },
             payments: {
-              orderBy: { dueDate: "desc" }
+              orderBy: { createdAt: "desc" }
             },
             TenantBehaviorAnalysis: true
           }
@@ -862,7 +862,7 @@ export const generateBehaviorReport = async (req, res) => {
               }
             },
             payments: {
-              orderBy: { dueDate: "desc" }
+              orderBy: { createdAt: "desc" }
             },
             TenantBehaviorAnalysis: true
           }
@@ -1082,7 +1082,7 @@ function calculateAveragePaymentDelay(payments) {
   if (latePayments.length === 0) return 0;
   
   const totalDelay = latePayments.reduce((sum, payment) => {
-    const dueDate = new Date(payment.dueDate);
+    const dueDate = new Date(payment.createdAt);
     const paidDate = new Date(payment.paidAt || payment.updatedAt);
     const delay = Math.ceil((paidDate - dueDate) / (1000 * 60 * 60 * 24));
     return sum + Math.max(0, delay);

@@ -31,8 +31,8 @@ export interface TenantDashboardData {
     status: string;
     startDate: string;
     endDate: string;
-    monthlyRent: number;
-    securityDeposit: number;
+    rentAmount: number;
+    interval: string;
     unit: {
       id: string;
       label: string;

@@ -132,8 +132,8 @@ export const getTenantDashboardData = async (req, res) => {
     const pendingPayments = allPayments.filter(payment => payment.status === "PENDING").length;
     const upcomingPayments = allPayments.filter(payment => 
       payment.status === "PENDING" && 
-      new Date(payment.dueDate) > new Date() && 
-      new Date(payment.dueDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      new Date(payment.createdAt) > new Date() && 
+      new Date(payment.createdAt) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     ).length;
 
     const maintenanceRequests = allMaintenanceRequests.length;
@@ -161,13 +161,13 @@ export const getTenantDashboardData = async (req, res) => {
     
     // Add upcoming payments as tasks
     const upcomingPaymentTasks = allPayments
-      .filter(payment => payment.status === "PENDING" && new Date(payment.dueDate) > new Date())
+      .filter(payment => payment.status === "PENDING" && new Date(payment.createdAt) > new Date())
       .slice(0, 3)
       .map(payment => ({
         id: `payment-${payment.id}`,
         type: "payment",
         title: `Payment Due: ${payment.amount}`,
-        dueDate: payment.dueDate,
+        dueDate: payment.createdAt,
         description: `Monthly rent payment due`,
         status: "pending"
       }));
@@ -202,10 +202,10 @@ export const getTenantDashboardData = async (req, res) => {
 
     // Find next payment due
     const nextPayment = allPayments
-      .filter(payment => payment.status === "PENDING" && new Date(payment.dueDate) > new Date())
-      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
+      .filter(payment => payment.status === "PENDING" && new Date(payment.createdAt) > new Date())
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))[0];
 
-    const nextPaymentDue = nextPayment ? nextPayment.dueDate : null;
+    const nextPaymentDue = nextPayment ? nextPayment.createdAt : null;
     const nextPaymentAmount = nextPayment ? nextPayment.amount : 0;
 
     // Calculate payment reliability percentage
@@ -226,8 +226,8 @@ export const getTenantDashboardData = async (req, res) => {
         status: currentLease.status,
         startDate: currentLease.startDate,
         endDate: currentLease.endDate,
-        monthlyRent: currentLease.monthlyRent,
-        securityDeposit: currentLease.securityDeposit,
+        rentAmount: currentLease.rentAmount,
+        interval: currentLease.interval,
         unit: {
           id: currentLease.unit.id,
           label: currentLease.unit.label,
@@ -243,7 +243,7 @@ export const getTenantDashboardData = async (req, res) => {
         amount: payment.amount,
         status: payment.status,
         timingStatus: payment.timingStatus,
-        dueDate: payment.dueDate,
+        dueDate: payment.createdAt,
         paidAt: payment.paidAt,
         createdAt: payment.createdAt
       })),
@@ -308,12 +308,17 @@ export const getTenantLeaseDetails = async (req, res) => {
       include: {
         unit: {
           include: {
-            property: true,
+            property: {
+              include: {
+                city: true,
+                municipality: true
+              }
+            },
             amenities: true
           }
         },
         payments: {
-          orderBy: { dueDate: "desc" }
+          orderBy: { createdAt: "desc" }
         },
         landlord: {
           select: {
@@ -341,7 +346,7 @@ export const getTenantLeaseDetails = async (req, res) => {
     }
 
     // Calculate payment statistics
-    const allPayments = lease.payments;
+    const allPayments = lease.payments || [];
     const totalPayments = allPayments.length;
     const paidPayments = allPayments.filter(payment => payment.status === "PAID").length;
     const pendingPayments = allPayments.filter(payment => payment.status === "PENDING").length;
@@ -380,8 +385,8 @@ export const getTenantLeaseDetails = async (req, res) => {
 
     // Get upcoming payments (next 3)
     const upcomingPayments = allPayments
-      .filter(payment => payment.status === "PENDING" && new Date(payment.dueDate) > now)
-      .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+      .filter(payment => payment.status === "PENDING" && new Date(payment.createdAt) > now)
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
       .slice(0, 3);
 
     // Mock lease rules (in a real app, these would come from the database)
@@ -436,10 +441,10 @@ export const getTenantLeaseDetails = async (req, res) => {
         description: lease.unit.description || "No description available",
         maxOccupancy: lease.unit.maxOccupancy || 1,
         floorNumber: lease.unit.floorNumber,
-        amenities: lease.unit.amenities.map(amenity => ({
+        amenities: lease.unit.amenities ? lease.unit.amenities.map(amenity => ({
           id: amenity.id,
           name: amenity.name
-        })),
+        })) : [],
         property: {
           id: lease.unit.property.id,
           title: lease.unit.property.title,
@@ -483,13 +488,13 @@ export const getTenantLeaseDetails = async (req, res) => {
         status: payment.status,
         paidAt: payment.paidAt,
         timingStatus: payment.timingStatus,
-        dueDate: payment.dueDate,
+        dueDate: payment.createdAt,
         createdAt: payment.createdAt
       })),
       upcomingPayments: upcomingPayments.map(payment => ({
         id: payment.id,
         amount: payment.amount,
-        dueDate: payment.dueDate,
+        dueDate: payment.createdAt,
         status: payment.status
       })),
       leaseRules
@@ -541,7 +546,7 @@ export const getTenantPayments = async (req, res) => {
           }
         }
       },
-      orderBy: { dueDate: "desc" }
+      orderBy: { createdAt: "desc" }
     });
 
     res.json(payments);

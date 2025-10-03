@@ -68,7 +68,14 @@ const MyLease = () => {
           console.error("Error status:", err.response?.status);
           console.error("Error data:", err.response?.data);
           console.error("=============================");
-          toast.error("Failed to fetch lease details");
+          
+          // Handle 404 as "no lease found" - this is expected behavior
+          if (err.response?.status === 404) {
+            console.log("No lease found for tenant - this is expected");
+            setLease(null);
+          } else {
+            toast.error("Failed to fetch lease details");
+          }
         }
       } finally {
         setLoading(false);
