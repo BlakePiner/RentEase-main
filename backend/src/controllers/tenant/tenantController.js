@@ -1,5 +1,6 @@
 // file: tenantController.js
 import prisma from "../../libs/prismaClient.js";
+import { createMessageNotification } from "../../services/notificationService.js";
 
 // Helper function to format property address
 function formatPropertyAddress(property) {
@@ -1167,6 +1168,56 @@ export const submitTenantApplication = async (req, res) => {
   }
 };
 
+// ---------------------------------------------- DELETE TENANT MESSAGE ----------------------------------------------
+export const deleteTenantMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized: user not found" });
+    }
+
+    if (!messageId) {
+      return res.status(400).json({ message: "Message ID is required" });
+    }
+
+    // Find the message and verify ownership
+    const message = await prisma.message.findFirst({
+      where: {
+        id: messageId,
+        senderId: userId, // Only sender can delete their own message
+      },
+      include: {
+        conversation: true
+      }
+    });
+
+    if (!message) {
+      return res.status(404).json({ message: "Message not found or not accessible" });
+    }
+
+    // Mark message as deleted (soft delete)
+    const updatedMessage = await prisma.message.update({
+      where: { id: messageId },
+      data: {
+        content: "This message was deleted"
+      }
+    });
+
+    return res.json({
+      message: "Message deleted successfully",
+      deletedMessage: {
+        id: updatedMessage.id,
+        content: updatedMessage.content
+      }
+    });
+  } catch (error) {
+    console.error("Error deleting tenant message:", error);
+    res.status(500).json({ message: "Failed to delete message" });
+  }
+};
+
 // ---------------------------------------------- GET TENANT APPLICATIONS ----------------------------------------------
 export const getTenantApplications = async (req, res) => {
   try {
@@ -1630,6 +1681,21 @@ export const sendTenantMessage = async (req, res) => {
       where: { id: conversation.id },
       data: { updatedAt: new Date() }
     });
+
+    // Get the recipient (other user in the conversation)
+    const messageRecipientId = conversation.userAId === senderId ? conversation.userBId : conversation.userAId;
+
+    // Create notification for the recipient
+    try {
+      await createMessageNotification(messageRecipientId, {
+        sender: message.sender,
+        content: message.content,
+        conversation: { id: conversation.id }
+      });
+    } catch (notificationError) {
+      console.error("Error creating message notification:", notificationError);
+      // Don't fail the message send if notification fails
+    }
 
     return res.json({
       message: {

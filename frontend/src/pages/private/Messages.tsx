@@ -23,6 +23,7 @@ import {
   getConversationMessagesRequest, 
   sendMessageRequest, 
   deleteConversationRequest,
+  deleteMessageRequest,
   getMessageStatsRequest,
   type Conversation,
   type Message,
@@ -33,6 +34,7 @@ import {
   getTenantConversationsRequest,
   getTenantConversationMessagesRequest,
   sendTenantMessageRequest,
+  deleteTenantMessageRequest,
   getTenantMessageStatsRequest,
   type Conversation as TenantConversation,
   type Message as TenantMessage,
@@ -134,13 +136,19 @@ const Messages = () => {
       return;
     }
 
+    // Don't fetch messages for virtual conversations (id is null)
+    if (!selectedConversation.id) {
+      setMessages([]);
+      return;
+    }
+
     const controller = new AbortController();
     const fetchMessages = async () => {
       try {
         const isLandlord = user.role === "LANDLORD";
         const response = isLandlord 
-          ? await getConversationMessagesRequest(selectedConversation.id, { signal: controller.signal })
-          : await getTenantConversationMessagesRequest(selectedConversation.id, { signal: controller.signal });
+          ? await getConversationMessagesRequest(selectedConversation.id!, { signal: controller.signal })
+          : await getTenantConversationMessagesRequest(selectedConversation.id!, { signal: controller.signal });
         setMessages(response.data.messages);
       } catch (err: any) {
         if (err.name !== "AbortError") {
@@ -163,30 +171,51 @@ const Messages = () => {
 
     try {
       const isLandlord = user.role === "LANDLORD";
-      const response = isLandlord 
-        ? await sendMessageRequest({
-            conversationId: selectedConversation.id,
-            content: messageContent,
-          })
-        : await sendTenantMessageRequest({
+      let response;
+
+      if (isLandlord) {
+        response = await sendMessageRequest({
+          conversationId: selectedConversation.id!,
+          content: messageContent,
+        });
+      } else {
+        // For tenants, handle both existing conversations and new conversations with landlord
+        if (selectedConversation.id) {
+          // Existing conversation
+          response = await sendTenantMessageRequest({
             conversationId: selectedConversation.id,
             content: messageContent,
           });
+        } else {
+          // New conversation with landlord (virtual conversation)
+          response = await sendTenantMessageRequest({
+            recipientId: selectedConversation.otherUser.id,
+            content: messageContent,
+          });
+        }
+      }
 
       // Add the new message to the messages list
       setMessages(prev => [...prev, response.data.message]);
 
       // Update the conversation's last message and unread count
       setConversations(prev => prev.map(conv => 
-        conv.id === selectedConversation.id 
+        (conv.id === selectedConversation.id || (conv.isLandlord && selectedConversation.isLandlord))
           ? {
               ...conv,
+              id: response.data.message.conversationId, // Update with real conversation ID
               lastMessage: response.data.message,
               unreadCount: 0,
               updatedAt: response.data.message.createdAt,
             }
           : conv
       ));
+
+      // Update selected conversation with real ID
+      setSelectedConversation(prev => prev ? {
+        ...prev,
+        id: response.data.message.conversationId
+      } : null);
 
       toast.success("Message sent successfully");
     } catch (err: any) {
@@ -195,6 +224,27 @@ const Messages = () => {
       setNewMessage(messageContent); // Restore the message
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return;
+    
+    try {
+      const isLandlord = user.role === "LANDLORD";
+      await (isLandlord ? deleteMessageRequest(messageId) : deleteTenantMessageRequest(messageId));
+      
+      // Update the message in the messages list
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: "This message was deleted" }
+          : msg
+      ));
+      
+      toast.success("Message deleted successfully");
+    } catch (err: any) {
+      console.error("Error deleting message:", err);
+      toast.error("Failed to delete message");
     }
   };
 
@@ -231,9 +281,10 @@ const Messages = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diffTime = now.getTime() - date.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
-    const diffMinutes = Math.ceil(diffTime / (1000 * 60));
+    const diffSeconds = Math.floor(diffTime / 1000);
+    const diffMinutes = Math.floor(diffTime / (1000 * 60));
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays > 0) {
       return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
@@ -241,6 +292,8 @@ const Messages = () => {
       return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
     } else if (diffMinutes > 0) {
       return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+    } else if (diffSeconds > 0) {
+      return `${diffSeconds} second${diffSeconds > 1 ? 's' : ''} ago`;
     } else {
       return "Just now";
     }
@@ -352,7 +405,7 @@ const Messages = () => {
                         {conversation.lastMessage?.content || "No messages yet"}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {conversation.timeAgo}
+                        {conversation.timeAgo || "No messages yet"}
                       </p>
                     </div>
                   </div>
@@ -418,36 +471,69 @@ const Messages = () => {
               className="flex-1 overflow-y-auto p-4 space-y-4"
             >
               {messages.length > 0 ? (
-                messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.senderId === user?.id ? 'justify-end' : 'justify-start'}`}
-                    onMouseEnter={() => setHoveredMessage(message.id)}
-                    onMouseLeave={() => setHoveredMessage(null)}
-                  >
-                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                      message.senderId === user?.id 
-                        ? 'bg-emerald-500 text-white' 
-                        : 'bg-gray-200 text-gray-900'
-                    }`}>
-                      <p className="text-sm">{message.content}</p>
-                      <div className={`flex items-center justify-between mt-1 text-xs ${
-                        message.senderId === user?.id ? 'text-emerald-100' : 'text-gray-500'
+                messages.map((message) => {
+                  const isDeleted = message.content === "This message was deleted";
+                  const isMyMessage = message.senderId === user?.id;
+                  const canDelete = isMyMessage && !isDeleted;
+                  
+                  return (
+                    <div
+                      key={message.id}
+                      className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'} group`}
+                      onMouseEnter={() => setHoveredMessage(message.id)}
+                      onMouseLeave={() => setHoveredMessage(null)}
+                    >
+                      <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg relative ${
+                        isDeleted 
+                          ? 'bg-gray-100 text-gray-500 italic' 
+                          : isMyMessage 
+                            ? 'bg-emerald-500 text-white' 
+                            : 'bg-gray-200 text-gray-900'
                       }`}>
-                        <span>{formatTime(message.createdAt)}</span>
-                        {message.senderId === user?.id && (
-                          <div className="flex items-center gap-1">
-                            {message.isRead ? (
-                              <CheckCheck className="h-3 w-3" />
-                            ) : (
-                              <Check className="h-3 w-3" />
+                        {isDeleted ? (
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm">This message was deleted</p>
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteMessage(message.id)}
+                                className="ml-2 text-gray-400 hover:text-gray-600"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
                             )}
                           </div>
+                        ) : (
+                          <>
+                            <p className="text-sm">{message.content}</p>
+                            {canDelete && hoveredMessage === message.id && (
+                              <button
+                                onClick={() => handleDeleteMessage(message.id)}
+                                className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                                title="Delete message"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </>
                         )}
+                        <div className={`flex items-center justify-between mt-1 text-xs ${
+                          isMyMessage && !isDeleted ? 'text-emerald-100' : 'text-gray-500'
+                        }`}>
+                          <span>{formatTime(message.createdAt)}</span>
+                          {isMyMessage && !isDeleted && (
+                            <div className="flex items-center gap-1">
+                              {message.isRead ? (
+                                <CheckCheck className="h-3 w-3" />
+                              ) : (
+                                <Check className="h-3 w-3" />
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">

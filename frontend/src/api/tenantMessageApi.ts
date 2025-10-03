@@ -2,7 +2,7 @@ import { privateApi } from "./axios";
 
 // Types for message data (same as landlord but for tenant context)
 export interface Conversation {
-  id: string;
+  id: string | null;
   title: string;
   otherUser: {
     id: string;
@@ -27,9 +27,10 @@ export interface Conversation {
     };
   } | null;
   unreadCount: number;
-  timeAgo: string;
-  createdAt: string;
-  updatedAt: string;
+  timeAgo: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  isLandlord?: boolean;
 }
 
 export interface Message {
@@ -77,7 +78,8 @@ export interface MessageStats {
 }
 
 export interface SendMessageData {
-  conversationId: string;
+  conversationId?: string;
+  recipientId?: string;
   content: string;
 }
 
@@ -114,5 +116,10 @@ export const getTenantMessageStatsRequest = async (params?: { signal?: AbortSign
   const response = await privateApi.get<MessageStats>("/tenant/messages/stats", {
     signal: params?.signal,
   });
+  return response;
+};
+
+export const deleteTenantMessageRequest = async (messageId: string) => {
+  const response = await privateApi.delete(`/tenant/messages/${messageId}`);
   return response;
 };

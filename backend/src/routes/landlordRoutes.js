@@ -55,6 +55,7 @@ import {
   sendMessage, 
   createOrGetConversation, 
   deleteConversation, 
+  deleteMessage,
   getMessageStats 
 } from "../controllers/landlord/messageController.js";
 import { 
@@ -152,6 +153,7 @@ router.get("/messages/:conversationId", requireAuthentication(["LANDLORD"]), get
 router.post("/messages", requireAuthentication(["LANDLORD"]), sendMessage);                                      // send a message
 router.post("/messages/conversation", requireAuthentication(["LANDLORD"]), createOrGetConversation);             // create or get conversation
 router.delete("/messages/:conversationId", requireAuthentication(["LANDLORD"]), deleteConversation);             // delete conversation
+router.delete("/messages/message/:messageId", requireAuthentication(["LANDLORD"]), deleteMessage);               // delete a message
 
 // ---------------------------- Payments
 router.get("/payments", requireAuthentication(["LANDLORD"]), getLandlordPayments);                               // get all payments

@@ -14,6 +14,7 @@ import {
   getTenantConversationMessages,
   sendTenantMessage,
   createOrGetTenantConversation,
+  deleteTenantMessage,
   getTenantMessageStats
 } from "../controllers/tenant/tenantController.js";
 
@@ -45,5 +46,6 @@ router.get("/messages/stats", requireAuthentication(["TENANT"]), getTenantMessag
 router.get("/messages/:conversationId", requireAuthentication(["TENANT"]), getTenantConversationMessages); // get conversation messages
 router.post("/messages", requireAuthentication(["TENANT"]), sendTenantMessage);                       // send a message
 router.post("/messages/conversation", requireAuthentication(["TENANT"]), createOrGetTenantConversation); // create or get conversation
+router.delete("/messages/:messageId", requireAuthentication(["TENANT"]), deleteTenantMessage);         // delete a message
 
 export default router;

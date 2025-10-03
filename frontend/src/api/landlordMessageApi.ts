@@ -121,3 +121,8 @@ export const getMessageStatsRequest = async (params?: { signal?: AbortSignal }) 
   });
   return response;
 };
+
+export const deleteMessageRequest = async (messageId: string) => {
+  const response = await privateApi.delete(`/landlord/messages/message/${messageId}`);
+  return response;
+};
