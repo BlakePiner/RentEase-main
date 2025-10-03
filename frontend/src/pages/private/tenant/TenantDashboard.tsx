@@ -78,14 +78,18 @@ const TenantDashboard = () => {
     });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
+    if (!status) return "bg-gray-100 text-gray-800 border-gray-200";
+    
     switch (status.toLowerCase()) {
       case "paid":
       case "completed":
       case "active":
+      case "resolved":
         return "bg-green-100 text-green-800 border-green-200";
       case "pending":
       case "in_progress":
+      case "open":
         return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "overdue":
       case "late":
@@ -101,7 +105,9 @@ const TenantDashboard = () => {
     }
   };
 
-  const getTimingStatusColor = (status: string) => {
+  const getTimingStatusColor = (status?: string) => {
+    if (!status) return "text-gray-600";
+    
     switch (status.toLowerCase()) {
       case "ontime":
       case "advance":
@@ -316,7 +322,7 @@ const TenantDashboard = () => {
                   <div className="space-y-1">
                     <span className="text-sm text-gray-600">Rent:</span>
                     <p className="font-medium text-gray-900">
-                      {formatCurrency(data.currentLease.rentAmount)} {data.currentLease.interval.toLowerCase()}
+                      {formatCurrency(data.currentLease.rentAmount)} {data.currentLease.interval?.toLowerCase() || ''}
                     </p>
                   </div>
                 </div>
@@ -485,26 +491,28 @@ const TenantDashboard = () => {
                 {data.recentMaintenanceRequests.slice(0, 5).map((request) => (
                   <div key={request.id} className="p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-start justify-between mb-2">
-                      <h4 className="text-sm font-medium text-gray-900">{request.title}</h4>
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${getStatusColor(request.priority)}`}
-                      >
-                        {request.priority}
-                      </Badge>
+                      <h4 className="text-sm font-medium text-gray-900">Maintenance Request</h4>
+                      {request.priority && (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getStatusColor(request.priority)}`}
+                        >
+                          {request.priority}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-gray-600 mb-2 line-clamp-2">
                       {request.description}
                     </p>
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-gray-500">
-                        {request.unit.label} • {request.property.title}
+                        {request.unit?.label || 'N/A'} • {request.property?.title || 'N/A'}
                       </p>
                       <Badge
                         variant="outline"
                         className={`text-xs ${getStatusColor(request.status)}`}
                       >
-                        {request.status}
+                        {request.status || 'OPEN'}
                       </Badge>
                     </div>
                   </div>

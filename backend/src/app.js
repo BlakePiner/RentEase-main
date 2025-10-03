@@ -28,10 +28,13 @@ app.use(cors({
 }));
 
 app.use(express.urlencoded({ extended: true }));
-app.use(express.json()); // Parse incoming JSON requests automatically
+app.use(express.json({ limit: '10mb' })); // Parse incoming JSON requests automatically with size limit
 app.use(morgan("dev")); // HTTP request logger (dev = concise colorful logs)
 app.use(globalLimiter); //Apply global limiter to all routes
 app.use(cookieParser()); // Parse cookies
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static('uploads'));
 // ------------------------------
 // Routes
 // ------------------------------

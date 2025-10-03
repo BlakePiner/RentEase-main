@@ -1,11 +1,13 @@
 // file: tenantRoutes.js
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
+import { uploadMaintenanceImage, handleMaintenanceImageUploadError } from "../middlewares/maintenanceImageUpload.js";
 import { 
   getTenantDashboardData,
   getTenantLeaseDetails,
   getTenantPayments,
   getTenantMaintenanceRequests,
+  submitMaintenanceRequest,
   browseApprovedProperties,
   getPropertyDetailsForTenant,
   submitTenantApplication,
@@ -34,6 +36,12 @@ router.get("/payments", requireAuthentication(["TENANT"]), getTenantPayments);
 
 // ---------------------------- Maintenance
 router.get("/maintenance-requests", requireAuthentication(["TENANT"]), getTenantMaintenanceRequests);
+router.post("/maintenance-requests", 
+  requireAuthentication(["TENANT"]), 
+  uploadMaintenanceImage, 
+  handleMaintenanceImageUploadError,
+  submitMaintenanceRequest
+);
 
 // ---------------------------- Browse Properties
 router.get("/browse-properties", requireAuthentication(["TENANT"]), browseApprovedProperties);

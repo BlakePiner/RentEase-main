@@ -218,6 +218,21 @@ export const getTenantMaintenanceRequests = async (params?: { signal?: AbortSign
   return response;
 };
 
+// Submit Maintenance Request Types
+export interface MaintenanceRequestSubmission {
+  description: string;
+  photoUrl: string;
+}
+
+export const submitMaintenanceRequest = async (data: FormData) => {
+  const response = await privateApi.post("/tenant/maintenance-requests", data, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response;
+};
+
 // Browse Properties Types
 export interface BrowseProperty {
   id: string;

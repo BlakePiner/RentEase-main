@@ -62,7 +62,9 @@ const Payments = () => {
     });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
+    if (!status) return "bg-gray-100 text-gray-800 border-gray-200";
+    
     switch (status.toLowerCase()) {
       case "paid":
         return "bg-green-100 text-green-800 border-green-200";
@@ -75,7 +77,9 @@ const Payments = () => {
     }
   };
 
-  const getTimingStatusColor = (status: string) => {
+  const getTimingStatusColor = (status?: string) => {
+    if (!status) return "text-gray-600";
+    
     switch (status.toLowerCase()) {
       case "ontime":
       case "advance":

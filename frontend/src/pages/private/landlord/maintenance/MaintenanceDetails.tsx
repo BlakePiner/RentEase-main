@@ -265,7 +265,7 @@ const MaintenanceDetails = () => {
                   <label className="text-sm font-medium text-gray-600">Photo</label>
                   <div className="mt-2">
                     <img
-                      src={request.photoUrl}
+                      src={`http://localhost:5000${request.photoUrl}`}
                       alt="Maintenance request photo"
                       className="w-full max-w-md h-64 object-cover rounded-lg border border-gray-200"
                     />

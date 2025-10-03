@@ -432,7 +432,7 @@ const Maintenance = () => {
                     <span className="text-sm text-gray-600">Photo</span>
                     <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
                       <img
-                        src={request.photoUrl}
+                        src={`http://localhost:5000${request.photoUrl}`}
                         alt="Maintenance request photo"
                         className="w-full h-full object-cover"
                       />

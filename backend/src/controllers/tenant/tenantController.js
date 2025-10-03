@@ -119,16 +119,10 @@ export const getTenantDashboardData = async (req, res) => {
       }
     });
 
-    // Get maintenance requests for this tenant's leases
+    // Get maintenance requests for this tenant
     const allMaintenanceRequests = await prisma.maintenanceRequest.findMany({
       where: {
-        unit: {
-          Lease: {
-            some: {
-              tenantId: tenantId
-            }
-          }
-        }
+        reporterId: tenantId
       },
       include: {
         property: {
@@ -596,9 +590,7 @@ export const getTenantMaintenanceRequests = async (req, res) => {
 
     const maintenanceRequests = await prisma.maintenanceRequest.findMany({
       where: {
-        lease: {
-          tenantId: tenantId
-        }
+        reporterId: tenantId
       },
       include: {
         property: {
@@ -615,11 +607,6 @@ export const getTenantMaintenanceRequests = async (req, res) => {
           select: {
             label: true
           }
-        },
-        lease: {
-          select: {
-            id: true
-          }
         }
       },
       orderBy: { createdAt: "desc" }
@@ -629,6 +616,125 @@ export const getTenantMaintenanceRequests = async (req, res) => {
   } catch (error) {
     console.error("Error fetching tenant maintenance requests:", error);
     res.status(500).json({ message: "Failed to fetch maintenance requests" });
+  }
+};
+
+// ---------------------------------------------- SUBMIT MAINTENANCE REQUEST ----------------------------------------------
+export const submitMaintenanceRequest = async (req, res) => {
+  try {
+    const tenantId = req.user?.id;
+    const { description } = req.body;
+
+    if (!tenantId) {
+      return res.status(401).json({ message: "Unauthorized: tenant not found" });
+    }
+
+    if (!description) {
+      return res.status(400).json({ message: "Description is required" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Photo is required" });
+    }
+
+    // Get the file path from the uploaded file
+    const photoUrl = `/uploads/maintenance/${req.file.filename}`;
+
+    // Get the tenant's current lease to get property and unit information
+    const currentLease = await prisma.lease.findFirst({
+      where: {
+        tenantId: tenantId,
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" }
+        ]
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              select: {
+                id: true,
+                title: true,
+                ownerId: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!currentLease) {
+      return res.status(404).json({ message: "No active lease found. You must have an active lease to submit maintenance requests." });
+    }
+
+    // Create the maintenance request
+    const maintenanceRequest = await prisma.maintenanceRequest.create({
+      data: {
+        propertyId: currentLease.unit.property.id,
+        unitId: currentLease.unit.id,
+        reporterId: tenantId,
+        description: description.trim(),
+        photoUrl: photoUrl,
+        status: "OPEN"
+      },
+      include: {
+        property: {
+          select: {
+            id: true,
+            title: true,
+            street: true,
+            barangay: true,
+            zipCode: true,
+            city: true,
+            municipality: true
+          }
+        },
+        unit: {
+          select: {
+            id: true,
+            label: true
+          }
+        },
+        reporter: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Create notification for the landlord
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: currentLease.unit.property.ownerId,
+          type: "MAINTENANCE_REQUEST",
+          title: "New Maintenance Request",
+          message: `A new maintenance request has been submitted for ${currentLease.unit.property.title} - Unit ${currentLease.unit.label}`,
+          data: {
+            maintenanceRequestId: maintenanceRequest.id,
+            propertyId: currentLease.unit.property.id,
+            unitId: currentLease.unit.id,
+            tenantId: tenantId
+          }
+        }
+      });
+    } catch (notificationError) {
+      console.error("Error creating maintenance request notification:", notificationError);
+      // Don't fail the request if notification fails
+    }
+
+    res.status(201).json({
+      message: "Maintenance request submitted successfully",
+      request: maintenanceRequest
+    });
+  } catch (error) {
+    console.error("Error submitting maintenance request:", error);
+    res.status(500).json({ message: "Failed to submit maintenance request" });
   }
 };
 

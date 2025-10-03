@@ -18,34 +18,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getTenantMaintenanceRequests } from "@/api/tenantApi";
+import MaintenanceRequestForm from "@/components/MaintenanceRequestForm";
 import { toast } from "sonner";
 
 const Maintenance = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSubmitForm, setShowSubmitForm] = useState(false);
+
+  const fetchRequests = async () => {
+    setLoading(true);
+    try {
+      const response = await getTenantMaintenanceRequests();
+      setRequests(response.data);
+    } catch (err: any) {
+      console.error("Error fetching maintenance requests:", err);
+      toast.error("Failed to fetch maintenance requests");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const controller = new AbortController();
-    const fetchRequests = async () => {
-      setLoading(true);
-      try {
-        const response = await getTenantMaintenanceRequests({
-          signal: controller.signal,
-        });
-        setRequests(response.data);
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error("Error fetching maintenance requests:", err);
-          toast.error("Failed to fetch maintenance requests");
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchRequests();
-    return () => controller.abort();
   }, []);
+
+  const handleSubmitSuccess = () => {
+    fetchRequests(); // Refresh the requests list
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -55,13 +55,17 @@ const Maintenance = () => {
     });
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
+    if (!status) return "bg-gray-100 text-gray-800 border-gray-200";
+    
     switch (status.toLowerCase()) {
       case "completed":
+      case "resolved":
         return "bg-green-100 text-green-800 border-green-200";
       case "in_progress":
         return "bg-blue-100 text-blue-800 border-blue-200";
       case "pending":
+      case "open":
         return "bg-yellow-100 text-yellow-800 border-yellow-200";
       case "cancelled":
         return "bg-gray-100 text-gray-800 border-gray-200";
@@ -70,7 +74,9 @@ const Maintenance = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = (priority?: string) => {
+    if (!priority) return "bg-gray-100 text-gray-800 border-gray-200";
+    
     switch (priority.toLowerCase()) {
       case "high":
         return "bg-red-100 text-red-800 border-red-200";
@@ -83,13 +89,17 @@ const Maintenance = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status?: string) => {
+    if (!status) return <Clock className="h-4 w-4" />;
+    
     switch (status.toLowerCase()) {
       case "completed":
+      case "resolved":
         return <CheckCircle className="h-4 w-4" />;
       case "in_progress":
         return <Clock className="h-4 w-4" />;
       case "pending":
+      case "open":
         return <AlertCircle className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
@@ -136,7 +146,7 @@ const Maintenance = () => {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button size="sm">
+          <Button size="sm" onClick={() => setShowSubmitForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Submit Request
           </Button>
@@ -165,7 +175,7 @@ const Maintenance = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Completed</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {requests.filter(r => r.status === "COMPLETED").length}
+                  {requests.filter(r => r.status === "COMPLETED" || r.status === "RESOLVED").length}
                 </p>
               </div>
               <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -197,7 +207,7 @@ const Maintenance = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Pending</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {requests.filter(r => r.status === "PENDING").length}
+                  {requests.filter(r => r.status === "PENDING" || r.status === "OPEN").length}
                 </p>
               </div>
               <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -223,24 +233,27 @@ const Maintenance = () => {
                 <div key={request.id} className="p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{request.title}</h3>
+                      <h3 className="font-medium text-gray-900">Maintenance Request</h3>
                       <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                         {request.description}
                       </p>
+                      {request.photoUrl && (
+                        <div className="mt-2">
+                          <img 
+                            src={`http://localhost:5000${request.photoUrl}`} 
+                            alt="Maintenance issue" 
+                            className="w-20 h-20 object-cover rounded border"
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2 ml-4">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs ${getPriorityColor(request.priority)}`}
-                      >
-                        {request.priority}
-                      </Badge>
                       <Badge
                         variant="outline"
                         className={`text-xs ${getStatusColor(request.status)}`}
                       >
                         {getStatusIcon(request.status)}
-                        <span className="ml-1">{request.status}</span>
+                        <span className="ml-1">{request.status || 'OPEN'}</span>
                       </Badge>
                     </div>
                   </div>
@@ -249,11 +262,11 @@ const Maintenance = () => {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1">
                         <Home className="h-4 w-4" />
-                        <span>{request.unit.label}</span>
+                        <span>{request.unit?.label || 'N/A'}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <MapPin className="h-4 w-4" />
-                        <span>{request.property.title}</span>
+                        <span>{request.property?.title || 'N/A'}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
@@ -271,7 +284,7 @@ const Maintenance = () => {
               <p className="text-gray-600 mb-4">
                 Submit a maintenance request if you need any repairs or assistance.
               </p>
-              <Button>
+              <Button onClick={() => setShowSubmitForm(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Submit Request
               </Button>
@@ -279,6 +292,13 @@ const Maintenance = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Maintenance Request Form Modal */}
+      <MaintenanceRequestForm
+        isOpen={showSubmitForm}
+        onClose={() => setShowSubmitForm(false)}
+        onSuccess={handleSubmitSuccess}
+      />
     </div>
   );
 };
