@@ -453,3 +453,11 @@ export const getTenantApplicationsRequest = async (params?: { signal?: AbortSign
   });
   return response;
 };
+
+// Download lease PDF
+export const downloadLeasePDF = async (leaseId: string): Promise<Blob> => {
+  const response = await privateApi.get(`/tenant/lease/${leaseId}/pdf`, {
+    responseType: 'blob'
+  });
+  return response.data;
+};

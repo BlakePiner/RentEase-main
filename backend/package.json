@@ -26,6 +26,7 @@
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
+    "puppeteer": "^24.23.0",
     "resend": "^6.0.3"
   },
   "devDependencies": {

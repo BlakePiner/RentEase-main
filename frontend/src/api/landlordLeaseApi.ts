@@ -238,3 +238,11 @@ export const deleteLeaseRequest = async (leaseId: string) => {
   const response = await privateApi.delete(`/landlord/leases/${leaseId}`);
   return response;
 };
+
+// Generate lease PDF
+export const generateLeasePDF = async (leaseId: string): Promise<Blob> => {
+  const response = await privateApi.get(`/landlord/leases/${leaseId}/pdf`, {
+    responseType: 'blob'
+  });
+  return response.data;
+};

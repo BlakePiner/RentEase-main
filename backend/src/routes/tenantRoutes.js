@@ -15,7 +15,8 @@ import {
   sendTenantMessage,
   createOrGetTenantConversation,
   deleteTenantMessage,
-  getTenantMessageStats
+  getTenantMessageStats,
+  downloadLeasePDF
 } from "../controllers/tenant/tenantController.js";
 
 const router = Router();
@@ -25,6 +26,7 @@ router.get("/dashboard", requireAuthentication(["TENANT"]), getTenantDashboardDa
 
 // ---------------------------- Lease
 router.get("/lease", requireAuthentication(["TENANT"]), getTenantLeaseDetails);
+router.get("/lease/:leaseId/pdf", requireAuthentication(["TENANT"]), downloadLeasePDF);
 
 // ---------------------------- Payments
 router.get("/payments", requireAuthentication(["TENANT"]), getTenantPayments);

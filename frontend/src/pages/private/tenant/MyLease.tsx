@@ -42,7 +42,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getTenantLeaseDetails, type TenantLeaseDetails } from "@/api/tenantApi";
+import { getTenantLeaseDetails, downloadLeasePDF, type TenantLeaseDetails } from "@/api/tenantApi";
+import { downloadPDF, generateLeaseFilename } from "@/lib/pdfUtils";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { toast } from "sonner";
 
@@ -85,6 +86,27 @@ const MyLease = () => {
     fetchLeaseDetails();
     return () => controller.abort();
   }, []);
+
+  const handleDownloadPDF = async () => {
+    if (!lease) return;
+
+    const loadingToast = toast.loading("Downloading PDF...");
+    
+    try {
+      const pdfBlob = await downloadLeasePDF(lease.id);
+      const filename = generateLeaseFilename(lease.leaseNickname, lease.id, false);
+      downloadPDF(pdfBlob, filename);
+      
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success("PDF downloaded successfully");
+    } catch (err: any) {
+      console.error("Error downloading PDF:", err);
+      // Dismiss loading toast and show error
+      toast.dismiss(loadingToast);
+      toast.error(err.response?.data?.message || "Failed to download PDF");
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -270,6 +292,10 @@ const MyLease = () => {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+            <Download className="h-4 w-4 mr-2" />
+            Download PDF
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link to="/tenant/payments">
               <CreditCard className="h-4 w-4 mr-2" />

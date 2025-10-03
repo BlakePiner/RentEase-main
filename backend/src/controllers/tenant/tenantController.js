@@ -1,6 +1,7 @@
 // file: tenantController.js
 import prisma from "../../libs/prismaClient.js";
 import { createMessageNotification } from "../../services/notificationService.js";
+import { generateLeasePDF } from "../../services/pdfService.js";
 
 // Helper function to format property address
 function formatPropertyAddress(property) {
@@ -1912,5 +1913,80 @@ export const getTenantMessageStats = async (req, res) => {
   } catch (error) {
     console.error("Error fetching tenant message stats:", error);
     res.status(500).json({ message: "Failed to fetch message statistics" });
+  }
+};
+
+// ---------------------------------------------- DOWNLOAD LEASE PDF (TENANT) ----------------------------------------------
+export const downloadLeasePDF = async (req, res) => {
+  try {
+    const { leaseId } = req.params;
+    const tenantId = req.user?.id;
+
+    if (!tenantId) {
+      return res.status(401).json({ message: "Unauthorized: tenant not found" });
+    }
+
+    if (!leaseId) {
+      return res.status(400).json({ message: "Lease ID is required" });
+    }
+
+    // Get the lease with all related data - verify tenant has access
+    const lease = await prisma.lease.findFirst({
+      where: {
+        id: leaseId,
+        tenantId: tenantId // Ensure tenant can only access their own lease
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              include: {
+                city: true,
+                municipality: true,
+                owner: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phoneNumber: true,
+                  }
+                }
+              }
+            }
+          }
+        },
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+          }
+        }
+      }
+    });
+
+    if (!lease) {
+      return res.status(404).json({ message: "Lease not found or not accessible" });
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generateLeasePDF(lease);
+
+    // Set response headers for PDF download
+    const fileName = `my-lease-${lease.leaseNickname || lease.id}-${new Date().toISOString().split('T')[0]}.pdf`;
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+
+    // Send the PDF
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error("Error downloading lease PDF:", error);
+    res.status(500).json({ message: "Failed to download lease PDF" });
   }
 };

@@ -29,8 +29,10 @@ import { Badge } from "@/components/ui/badge";
 import { 
   getLeaseDetailsRequest, 
   deleteLeaseRequest,
+  generateLeasePDF,
   type LeaseDetails 
 } from "@/api/landlordLeaseApi";
+import { downloadPDF, generateLeaseFilename } from "@/lib/pdfUtils";
 import { toast } from "sonner";
 
 const LeaseDetails = () => {
@@ -83,6 +85,27 @@ const LeaseDetails = () => {
       toast.error(err.response?.data?.message || "Failed to delete lease");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleGeneratePDF = async () => {
+    if (!lease || !leaseId) return;
+
+    const loadingToast = toast.loading("Generating PDF...");
+    
+    try {
+      const pdfBlob = await generateLeasePDF(leaseId);
+      const filename = generateLeaseFilename(lease.leaseNickname, leaseId, true);
+      downloadPDF(pdfBlob, filename);
+      
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success("PDF generated successfully");
+    } catch (err: any) {
+      console.error("Error generating PDF:", err);
+      // Dismiss loading toast and show error
+      toast.dismiss(loadingToast);
+      toast.error(err.response?.data?.message || "Failed to generate PDF");
     }
   };
 
@@ -234,6 +257,10 @@ const LeaseDetails = () => {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleGeneratePDF}>
+            <Download className="h-4 w-4 mr-2" />
+            Generate PDF
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link to={`/landlord/leases/${lease.id}/edit`}>
               <Edit className="h-4 w-4 mr-2" />

@@ -26,7 +26,8 @@ import {
   deleteLease, 
   getLeaseStats,
   getTenants,
-  activateLease
+  activateLease,
+  generateLeasePDFController
 } from "../controllers/landlord/leaseController.js";
 import { 
   getLandlordMaintenanceRequests, 
@@ -121,6 +122,7 @@ router.post("/leases", requireAuthentication(["LANDLORD"]), uploadLeaseDocument,
 router.put("/leases/:leaseId", requireAuthentication(["LANDLORD"]), uploadLeaseDocument, handleFileUploadError, updateLease);                               // update a lease
 router.delete("/leases/:leaseId", requireAuthentication(["LANDLORD"]), deleteLease);                            // delete a lease
 router.patch("/leases/:leaseId/activate", requireAuthentication(["LANDLORD"]), activateLease);                     // activate a lease
+router.get("/leases/:leaseId/pdf", requireAuthentication(["LANDLORD"]), generateLeasePDFController);              // generate lease PDF
 
 // ---------------------------- Tenants (for lease creation)
 router.get("/tenants/available", requireAuthentication(["LANDLORD"]), getTenants);                               // get all available tenants for lease creation
