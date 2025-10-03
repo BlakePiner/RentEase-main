@@ -1,0 +1,41 @@
+To run this you need 2 powershells 1 for backend and one for frontend
+- cd backend and cd frontend
+
+Next install npm dependecies for both backend and frontend
+- npm i 
+
+Generate prisma in backend
+- npx prisma generate
+
+Create an env file for both backend and frontend // note must be inside backend and frontend folder
+- right click backend create file name it .env
+- same as frontend
+
+Once env files are created chat me to receive the details for the env files
+- Chat me
+
+Once everything is setup you can run the system now
+- use npm run dev on both backend and frontend
+
+//Additional Notes
+To upload a property go to properties page (Landlord account), fill in the details and there you go
+
+Now your property is not yet going to be seen by the tenants, for it to be seen
+- Create a unit for that property first
+- Fill in all credentials and create the unit
+- Go back to your properties that you created the unit at 
+- View details
+- Units
+- View details
+- There should be a button for list property now
+
+Login to either a tenant account or admin account
+- For the accounts again chat me
+- On tenants you shouldn't see the property yet (Hopefully)
+- On admin go to property request and you should see the / and X
+- Once approved go back to a tenant account and see if the details is being displayed
+
+!IMPORTANT ONCES!
+- DO NOT I MEAN DO NOT CHANGE ANYTHING IN THE CODE ESPECIALLY ON THE DATABASE SINCE THE DATABASE USED IS MINE AND THE CHANGES WILL AFFECT GLOBALLY
+- SOME OF THE DETAILS SUCH AS DASHBOARD DOESN'T REFLECT THE DATA YET
+- THERE IS NO EMAIL VERIFICATION FOR NOW BECAUSE OF REDIS (I STILL HAVE TO FIGURE THAT ONE FIRST)
