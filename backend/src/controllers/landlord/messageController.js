@@ -381,21 +381,34 @@ export const deleteMessage = async (req, res) => {
       return res.status(404).json({ message: "Message not found or not accessible" });
     }
 
-    // Mark message as deleted (soft delete)
-    const updatedMessage = await prisma.message.update({
-      where: { id: messageId },
-      data: {
-        content: "This message was deleted"
-      }
-    });
+    // Check if this is already a deleted message placeholder
+    if (message.content === "This message was deleted") {
+      // Permanently delete the placeholder message from database
+      await prisma.message.delete({
+        where: { id: messageId }
+      });
 
-    return res.json({
-      message: "Message deleted successfully",
-      deletedMessage: {
-        id: updatedMessage.id,
-        content: updatedMessage.content
-      }
-    });
+      return res.json({
+        message: "Message permanently deleted",
+        permanentlyDeleted: true
+      });
+    } else {
+      // Mark message as deleted (soft delete)
+      const updatedMessage = await prisma.message.update({
+        where: { id: messageId },
+        data: {
+          content: "This message was deleted"
+        }
+      });
+
+      return res.json({
+        message: "Message deleted successfully",
+        deletedMessage: {
+          id: updatedMessage.id,
+          content: updatedMessage.content
+        }
+      });
+    }
   } catch (error) {
     console.error("Error deleting message:", error);
     res.status(500).json({ message: "Failed to delete message" });

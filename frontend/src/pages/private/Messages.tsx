@@ -232,16 +232,22 @@ const Messages = () => {
     
     try {
       const isLandlord = user.role === "LANDLORD";
-      await (isLandlord ? deleteMessageRequest(messageId) : deleteTenantMessageRequest(messageId));
+      const response = await (isLandlord ? deleteMessageRequest(messageId) : deleteTenantMessageRequest(messageId));
       
-      // Update the message in the messages list
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageId 
-          ? { ...msg, content: "This message was deleted" }
-          : msg
-      ));
-      
-      toast.success("Message deleted successfully");
+      // Check if message was permanently deleted
+      if (response.data.permanentlyDeleted) {
+        // Remove the message from the messages list entirely
+        setMessages(prev => prev.filter(msg => msg.id !== messageId));
+        toast.success("Message permanently deleted");
+      } else {
+        // Update the message content to show "This message was deleted"
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId 
+            ? { ...msg, content: "This message was deleted" }
+            : msg
+        ));
+        toast.success("Message deleted successfully");
+      }
     } catch (err: any) {
       console.error("Error deleting message:", err);
       toast.error("Failed to delete message");
@@ -493,10 +499,11 @@ const Messages = () => {
                         {isDeleted ? (
                           <div className="flex items-center justify-between">
                             <p className="text-sm">This message was deleted</p>
-                            {canDelete && (
+                            {isMyMessage && (
                               <button
                                 onClick={() => handleDeleteMessage(message.id)}
-                                className="ml-2 text-gray-400 hover:text-gray-600"
+                                className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                                title="Permanently delete this message"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>

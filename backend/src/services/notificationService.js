@@ -97,12 +97,9 @@ export const createMessageNotification = async (userId, messageData) => {
   const { sender, content, conversation } = messageData;
   const senderName = sender ? `${sender.firstName} ${sender.lastName}` : 'Unknown sender';
   
-  // Truncate message content if too long
-  const truncatedContent = content && content.length > 50 
-    ? content.substring(0, 50) + "..." 
-    : content || "New message";
-  
-  const message = `New message from ${senderName}: ${truncatedContent}`;
+  // Don't include message content in notification to protect privacy
+  // This prevents deleted messages from being visible in notifications
+  const message = `New message from ${senderName}`;
   const type = "MESSAGE";
   
   await createNotification(userId, type, message);
