@@ -13,11 +13,12 @@ import {
   MapPin,
   Filter,
   Search,
+  EyeOff,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getTenantMaintenanceRequests } from "@/api/tenantApi";
+import { getTenantMaintenanceRequests, clearMaintenanceRequest } from "@/api/tenantApi";
 import MaintenanceRequestForm from "@/components/MaintenanceRequestForm";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ const Maintenance = () => {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
+  const [clearedRequests, setClearedRequests] = useState<Set<string>>(new Set());
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -45,6 +47,26 @@ const Maintenance = () => {
 
   const handleSubmitSuccess = () => {
     fetchRequests(); // Refresh the requests list
+  };
+
+  const handleClearRequest = async (requestId: string) => {
+    const confirmed = window.confirm(
+      "Are you sure you want to clear this maintenance request? It will be removed from your view but will remain in the system for your landlord."
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await clearMaintenanceRequest(requestId);
+      
+      // Add to cleared requests set to hide it from view
+      setClearedRequests(prev => new Set([...prev, requestId]));
+      
+      toast.success("Maintenance request cleared successfully");
+    } catch (error: any) {
+      console.error("Error clearing maintenance request:", error);
+      toast.error(error.response?.data?.message || "Failed to clear maintenance request");
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -106,6 +128,9 @@ const Maintenance = () => {
     }
   };
 
+  // Filter out cleared requests for display
+  const visibleRequests = requests.filter(request => !clearedRequests.has(request.id));
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -160,7 +185,7 @@ const Maintenance = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Requests</p>
-                <p className="text-2xl font-bold text-gray-900">{requests.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{visibleRequests.length}</p>
               </div>
               <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <Wrench className="h-6 w-6 text-blue-600" />
@@ -175,7 +200,7 @@ const Maintenance = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Completed</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {requests.filter(r => r.status === "COMPLETED" || r.status === "RESOLVED").length}
+                  {visibleRequests.filter(r => r.status === "COMPLETED" || r.status === "RESOLVED").length}
                 </p>
               </div>
               <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -191,7 +216,7 @@ const Maintenance = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">In Progress</p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {requests.filter(r => r.status === "IN_PROGRESS").length}
+                  {visibleRequests.filter(r => r.status === "IN_PROGRESS").length}
                 </p>
               </div>
               <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -207,7 +232,7 @@ const Maintenance = () => {
               <div>
                 <p className="text-sm font-medium text-gray-600">Pending</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {requests.filter(r => r.status === "PENDING" || r.status === "OPEN").length}
+                  {visibleRequests.filter(r => r.status === "PENDING" || r.status === "OPEN").length}
                 </p>
               </div>
               <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -227,9 +252,9 @@ const Maintenance = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {requests.length > 0 ? (
+          {visibleRequests.length > 0 ? (
             <div className="space-y-4">
-              {requests.map((request) => (
+              {visibleRequests.map((request) => (
                 <div key={request.id} className="p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
@@ -255,6 +280,15 @@ const Maintenance = () => {
                         {getStatusIcon(request.status)}
                         <span className="ml-1">{request.status || 'OPEN'}</span>
                       </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleClearRequest(request.id)}
+                        className="text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                        title="Clear this request from your view"
+                      >
+                        <EyeOff className="h-3 w-3" />
+                      </Button>
                     </div>
                   </div>
                   

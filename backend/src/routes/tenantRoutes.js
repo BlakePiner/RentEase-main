@@ -7,6 +7,7 @@ import {
   getTenantLeaseDetails,
   getTenantPayments,
   getTenantMaintenanceRequests,
+  clearMaintenanceRequest,
   submitMaintenanceRequest,
   browseApprovedProperties,
   getPropertyDetailsForTenant,
@@ -42,6 +43,7 @@ router.post("/maintenance-requests",
   handleMaintenanceImageUploadError,
   submitMaintenanceRequest
 );
+router.patch("/maintenance-requests/:requestId/clear", requireAuthentication(["TENANT"]), clearMaintenanceRequest);
 
 // ---------------------------- Browse Properties
 router.get("/browse-properties", requireAuthentication(["TENANT"]), browseApprovedProperties);

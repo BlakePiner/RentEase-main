@@ -233,6 +233,11 @@ export const submitMaintenanceRequest = async (data: FormData) => {
   return response;
 };
 
+export const clearMaintenanceRequest = async (requestId: string) => {
+  const response = await privateApi.patch(`/tenant/maintenance-requests/${requestId}/clear`);
+  return response;
+};
+
 // Browse Properties Types
 export interface BrowseProperty {
   id: string;

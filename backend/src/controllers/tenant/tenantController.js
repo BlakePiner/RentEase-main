@@ -619,6 +619,44 @@ export const getTenantMaintenanceRequests = async (req, res) => {
   }
 };
 
+// ---------------------------------------------- CLEAR MAINTENANCE REQUEST ----------------------------------------------
+export const clearMaintenanceRequest = async (req, res) => {
+  try {
+    const tenantId = req.user?.id;
+    const { requestId } = req.params;
+
+    if (!tenantId) {
+      return res.status(401).json({ message: "Unauthorized: tenant not found" });
+    }
+
+    if (!requestId) {
+      return res.status(400).json({ message: "Request ID is required" });
+    }
+
+    // Check if the maintenance request exists and belongs to this tenant
+    const maintenanceRequest = await prisma.maintenanceRequest.findFirst({
+      where: {
+        id: requestId,
+        reporterId: tenantId
+      }
+    });
+
+    if (!maintenanceRequest) {
+      return res.status(404).json({ message: "Maintenance request not found or not accessible" });
+    }
+
+    // For now, we'll just return success without modifying the database
+    // The frontend will handle hiding the request from the tenant's view
+    res.json({
+      message: "Maintenance request cleared successfully",
+      requestId: requestId
+    });
+  } catch (error) {
+    console.error("Error clearing maintenance request:", error);
+    res.status(500).json({ message: "Failed to clear maintenance request" });
+  }
+};
+
 // ---------------------------------------------- SUBMIT MAINTENANCE REQUEST ----------------------------------------------
 export const submitMaintenanceRequest = async (req, res) => {
   try {
@@ -709,20 +747,15 @@ export const submitMaintenanceRequest = async (req, res) => {
 
     // Create notification for the landlord
     try {
-      await prisma.notification.create({
+      console.log("Creating notification for landlord:", currentLease.unit.property.ownerId);
+      const notification = await prisma.notification.create({
         data: {
           userId: currentLease.unit.property.ownerId,
           type: "MAINTENANCE_REQUEST",
-          title: "New Maintenance Request",
-          message: `A new maintenance request has been submitted for ${currentLease.unit.property.title} - Unit ${currentLease.unit.label}`,
-          data: {
-            maintenanceRequestId: maintenanceRequest.id,
-            propertyId: currentLease.unit.property.id,
-            unitId: currentLease.unit.id,
-            tenantId: tenantId
-          }
+          message: `New maintenance request submitted for ${currentLease.unit.property.title} - Unit ${currentLease.unit.label}`
         }
       });
+      console.log("Notification created successfully:", notification.id);
     } catch (notificationError) {
       console.error("Error creating maintenance request notification:", notificationError);
       // Don't fail the request if notification fails
