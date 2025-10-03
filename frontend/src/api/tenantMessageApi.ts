@@ -31,6 +31,7 @@ export interface Conversation {
   createdAt: string | null;
   updatedAt: string | null;
   isLandlord?: boolean;
+  isInquiry?: boolean; // Flag to identify inquiry conversations
 }
 
 export interface Message {
@@ -121,5 +122,10 @@ export const getTenantMessageStatsRequest = async (params?: { signal?: AbortSign
 
 export const deleteTenantMessageRequest = async (messageId: string) => {
   const response = await privateApi.delete(`/tenant/messages/${messageId}`);
+  return response;
+};
+
+export const deleteTenantConversationRequest = async (conversationId: string) => {
+  const response = await privateApi.delete(`/tenant/messages/conversation/${conversationId}`);
   return response;
 };

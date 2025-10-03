@@ -14,6 +14,34 @@ function formatPropertyAddress(property) {
   return segments.join(", ");
 }
 
+// Helper function to check if a conversation is an inquiry
+const checkIfInquiry = async (tenantId, landlordId) => {
+  try {
+    // Check if the tenant has an active lease with this landlord
+    const existingLease = await prisma.lease.findFirst({
+      where: {
+        tenantId: tenantId,
+        unit: {
+          property: {
+            ownerId: landlordId
+          }
+        },
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" }
+        ]
+      }
+    });
+
+    // If no active lease exists, this is an inquiry
+    return !existingLease;
+  } catch (error) {
+    console.error("Error checking if inquiry:", error);
+    // Default to true (inquiry) if there's an error
+    return true;
+  }
+};
+
 // ---------------------------------------------- GET TENANT DASHBOARD DATA ----------------------------------------------
 export const getTenantDashboardData = async (req, res) => {
   try {
@@ -1232,6 +1260,58 @@ export const deleteTenantMessage = async (req, res) => {
   }
 };
 
+// ---------------------------------------------- DELETE TENANT CONVERSATION ----------------------------------------------
+export const deleteTenantConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const tenantId = req.user?.id;
+
+    if (!tenantId) {
+      return res.status(401).json({ message: "Unauthorized: tenant not found" });
+    }
+
+    if (!conversationId) {
+      return res.status(400).json({ message: "Conversation ID is required" });
+    }
+
+    // Find the conversation and verify the tenant has access to it
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        OR: [
+          { userAId: tenantId },
+          { userBId: tenantId }
+        ]
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found or not accessible" });
+    }
+
+    // Check if this is a conversation with the tenant's current landlord
+    const otherUserId = conversation.userAId === tenantId ? conversation.userBId : conversation.userAId;
+    const isInquiry = await checkIfInquiry(tenantId, otherUserId);
+    
+    // If it's NOT an inquiry, it means they have a lease (current landlord) - prevent deletion
+    if (!isInquiry) {
+      return res.status(403).json({ 
+        message: "Cannot delete conversation with your current landlord. This conversation is protected." 
+      });
+    }
+
+    // Delete the conversation and all its messages
+    await prisma.conversation.delete({
+      where: { id: conversationId }
+    });
+
+    res.json({ message: "Conversation deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting tenant conversation:", error);
+    res.status(500).json({ message: "Failed to delete conversation" });
+  }
+};
+
 // ---------------------------------------------- GET TENANT APPLICATIONS ----------------------------------------------
 export const getTenantApplications = async (req, res) => {
   try {
@@ -1387,7 +1467,7 @@ export const getTenantConversations = async (req, res) => {
     });
 
     // Format the response
-    const formattedConversations = conversations.map(conversation => {
+    const formattedConversations = await Promise.all(conversations.map(async (conversation) => {
       const otherUser = conversation.userAId === tenantId ? conversation.userB : conversation.userA;
       const lastMessage = conversation.messages[0] || null;
       
@@ -1409,6 +1489,9 @@ export const getTenantConversations = async (req, res) => {
       } else {
         timeAgo = "Just now";
       }
+
+      // Check if this is an inquiry dynamically
+      const isInquiry = await checkIfInquiry(tenantId, otherUser.id);
 
       return {
         id: conversation.id,
@@ -1439,8 +1522,9 @@ export const getTenantConversations = async (req, res) => {
         timeAgo,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
+        isInquiry: isInquiry, // Dynamic inquiry check
       };
-    });
+    }));
 
     // If the tenant has an assigned landlord, check if there's already a conversation with them
     let landlordConversation = null;
@@ -1472,6 +1556,7 @@ export const getTenantConversations = async (req, res) => {
           createdAt: null,
           updatedAt: null,
           isLandlord: true, // Flag to indicate this is the assigned landlord
+          isInquiry: false, // This is the current landlord, not an inquiry
         };
       }
     }
@@ -1821,6 +1906,9 @@ export const createOrGetTenantConversation = async (req, res) => {
     // Format the response
     const otherUser = conversation.userAId === currentUserId ? conversation.userB : conversation.userA;
     
+    // Check if this is an inquiry dynamically
+    const isInquiry = await checkIfInquiry(currentUserId, otherUser.id);
+    
     res.json({
       conversation: {
         id: conversation.id,
@@ -1834,6 +1922,7 @@ export const createOrGetTenantConversation = async (req, res) => {
           role: otherUser.role,
           fullName: `${otherUser.firstName || ''} ${otherUser.lastName || ''}`.trim() || otherUser.email,
         },
+        isInquiry: isInquiry, // Dynamic inquiry check
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
       }

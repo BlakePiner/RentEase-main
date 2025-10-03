@@ -2,6 +2,34 @@
 import prisma from "../../libs/prismaClient.js";
 import { createMessageNotification } from "../../services/notificationService.js";
 
+// Helper function to check if a conversation is an inquiry
+const checkIfInquiry = async (tenantId, landlordId) => {
+  try {
+    // Check if the tenant has an active lease with this landlord
+    const existingLease = await prisma.lease.findFirst({
+      where: {
+        tenantId: tenantId,
+        unit: {
+          property: {
+            ownerId: landlordId
+          }
+        },
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" }
+        ]
+      }
+    });
+
+    // If no active lease exists, this is an inquiry
+    return !existingLease;
+  } catch (error) {
+    console.error("Error checking if inquiry:", error);
+    // Default to true (inquiry) if there's an error
+    return true;
+  }
+};
+
 // ---------------------------------------------- GET ALL CONVERSATIONS FOR LANDLORD ----------------------------------------------
 export const getLandlordConversations = async (req, res) => {
   try {
@@ -68,7 +96,7 @@ export const getLandlordConversations = async (req, res) => {
     });
 
     // Format the response
-    const formattedConversations = conversations.map((conversation) => {
+    const formattedConversations = await Promise.all(conversations.map(async (conversation) => {
       const otherUser = conversation.userAId === ownerId ? conversation.userB : conversation.userA;
       const lastMessage = conversation.messages[0];
       
@@ -93,6 +121,9 @@ export const getLandlordConversations = async (req, res) => {
         }
       }
 
+      // Check if this is an inquiry dynamically
+      const isInquiry = await checkIfInquiry(otherUser.id, ownerId);
+      
       return {
         id: conversation.id,
         title: conversation.title || `${otherUser.firstName || ''} ${otherUser.lastName || ''}`.trim() || otherUser.email,
@@ -122,8 +153,9 @@ export const getLandlordConversations = async (req, res) => {
         timeAgo,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
+        isInquiry: isInquiry, // Dynamic inquiry check
       };
-    });
+    }));
 
     return res.json(formattedConversations);
   } catch (error) {

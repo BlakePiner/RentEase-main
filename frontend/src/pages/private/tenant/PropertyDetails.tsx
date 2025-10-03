@@ -23,8 +23,11 @@ import {
   Loader2
 } from "lucide-react";
 import { getPropertyDetailsRequest, type PropertyDetails, type PropertyUnit } from "@/api/tenantApi";
+import { createOrGetTenantConversationRequest, sendTenantMessageRequest } from "@/api/tenantMessageApi";
 import TenantApplicationForm from "@/components/TenantApplicationForm";
+import UnitDetailsModal from "@/components/UnitDetailsModal";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const StarRating = ({ rating, reviewCount }: { rating: number; reviewCount: number }) => {
   const fullStars = Math.floor(rating);
@@ -48,12 +51,18 @@ const StarRating = ({ rating, reviewCount }: { rating: number; reviewCount: numb
 
 const PropertyDetailsPage = () => {
   const { propertyId } = useParams<{ propertyId: string }>();
+  const navigate = useNavigate();
   const [property, setProperty] = useState<PropertyDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUnit, setSelectedUnit] = useState<PropertyUnit | null>(null);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [contactingOwner, setContactingOwner] = useState(false);
+  
+  // Unit details modal state
+  const [showUnitDetails, setShowUnitDetails] = useState(false);
+  const [selectedUnitForDetails, setSelectedUnitForDetails] = useState<PropertyUnit | null>(null);
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -99,6 +108,16 @@ const PropertyDetailsPage = () => {
     setShowApplicationModal(true);
   };
 
+  const handleViewUnitDetails = (unit: PropertyUnit) => {
+    setSelectedUnitForDetails(unit);
+    setShowUnitDetails(true);
+  };
+
+  const handleCloseUnitDetails = () => {
+    setShowUnitDetails(false);
+    setSelectedUnitForDetails(null);
+  };
+
   const handleStartApplication = () => {
     setShowApplicationModal(false);
     setShowApplicationForm(true);
@@ -113,6 +132,36 @@ const PropertyDetailsPage = () => {
   const handleApplicationCancel = () => {
     setShowApplicationForm(false);
     setSelectedUnit(null);
+  };
+
+  const handleContactOwner = async () => {
+    if (!property?.owner) return;
+
+    setContactingOwner(true);
+    try {
+      // Create or get conversation with the property owner
+      const conversationResponse = await createOrGetTenantConversationRequest({
+        otherUserId: property.owner.id
+      });
+
+      // Send an inquiry message
+      const inquiryMessage = `Hi! I'm interested in your property "${property.title}". I'd like to know more about the available units and rental terms. Could you please provide more information?`;
+      
+      await sendTenantMessageRequest({
+        conversationId: conversationResponse.data.conversation.id,
+        content: inquiryMessage
+      });
+
+      toast.success("Inquiry sent successfully! The property owner will be notified.");
+      
+      // Navigate to messages page
+      navigate("/tenant/messages");
+    } catch (error: any) {
+      console.error("Error contacting owner:", error);
+      toast.error(error.response?.data?.message || "Failed to send inquiry. Please try again.");
+    } finally {
+      setContactingOwner(false);
+    }
   };
 
   if (loading) {
@@ -346,11 +395,20 @@ const PropertyDetailsPage = () => {
                         </div>
                       </div>
 
-                      {/* Apply Button */}
-                      <div className="ml-4">
+                      {/* Action Buttons */}
+                      <div className="ml-4 flex flex-col gap-2">
+                        <Button 
+                          onClick={() => handleViewUnitDetails(unit)}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          View Details
+                        </Button>
                         <Button 
                           onClick={() => handleApplyForUnit(unit)}
                           className="bg-blue-600 hover:bg-blue-700"
+                          size="sm"
                         >
                           <FileText className="h-4 w-4 mr-2" />
                           Apply
@@ -422,9 +480,23 @@ const PropertyDetailsPage = () => {
                 )}
               </div>
 
-              <Button className="w-full mt-4" variant="outline">
-                <Mail className="h-4 w-4 mr-2" />
-                Contact Owner
+              <Button 
+                className="w-full mt-4" 
+                variant="outline"
+                onClick={handleContactOwner}
+                disabled={contactingOwner}
+              >
+                {contactingOwner ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending Inquiry...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Contact Owner
+                  </>
+                )}
               </Button>
             </Card>
 
@@ -499,6 +571,17 @@ const PropertyDetailsPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Unit Details Modal */}
+      {selectedUnitForDetails && (
+        <UnitDetailsModal
+          unit={selectedUnitForDetails}
+          property={property}
+          isOpen={showUnitDetails}
+          onClose={handleCloseUnitDetails}
+          onApply={handleApplyForUnit}
+        />
+      )}
     </div>
   );
 };

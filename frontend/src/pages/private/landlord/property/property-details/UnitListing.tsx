@@ -9,13 +9,14 @@ import { requestListingRequest, getUnitsListingStatusRequest } from "@/api/landl
 const UnitListing = () => {
   const { propertyId } = useParams();
   const [units, setUnits] = useState<any>({
-    pending: [],
-    approved: [],
-    active: [],
-    blocked: [],
-    eligible: [],
+    PENDING: [],
+    APPROVED: [],
+    ACTIVE: [],
+    BLOCKED: [],
+    ELIGIBLE: [],
   });
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   // Modal states
@@ -27,12 +28,31 @@ const UnitListing = () => {
   useEffect(() => {
     const fetchStatus = async () => {
       if (!propertyId) return;
+      setFetching(true);
       try {
         const res = await getUnitsListingStatusRequest(propertyId);
-        setUnits(res.data);
+        // Ensure all categories exist with proper fallbacks
+        const data = res.data || {};
+        setUnits({
+          PENDING: data.PENDING || [],
+          APPROVED: data.APPROVED || [],
+          ACTIVE: data.ACTIVE || [],
+          BLOCKED: data.BLOCKED || [],
+          ELIGIBLE: data.ELIGIBLE || [],
+        });
       } catch (error) {
         console.error("Failed to fetch listing status", error);
         setMessage("❌ Failed to fetch listing status.");
+        // Reset to empty state on error
+        setUnits({
+          PENDING: [],
+          APPROVED: [],
+          ACTIVE: [],
+          BLOCKED: [],
+          ELIGIBLE: [],
+        });
+      } finally {
+        setFetching(false);
       }
     };
 
@@ -57,7 +77,14 @@ const UnitListing = () => {
 
       // Refresh list
       const res = await getUnitsListingStatusRequest(propertyId);
-      setUnits(res.data);
+      const data = res.data || {};
+      setUnits({
+        PENDING: data.PENDING || [],
+        APPROVED: data.APPROVED || [],
+        ACTIVE: data.ACTIVE || [],
+        BLOCKED: data.BLOCKED || [],
+        ELIGIBLE: data.ELIGIBLE || [],
+      });
     } catch (error: any) {
       console.error(error);
       setMessage("❌ Failed to submit listing request.");
@@ -66,26 +93,37 @@ const UnitListing = () => {
     }
   };
 
+  if (fetching) {
+    return (
+      <Card className="p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading unit listing statuses...</p>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className="p-8">
       <div className="text-center mb-6">
         <Home className="h-16 w-16 text-gray-300 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Listing Management</h3>
         <p className="text-gray-500">
-          Manage your property units’ listing statuses. Submit eligible units for review.
+          Manage your property units' listing statuses. Submit eligible units for review.
         </p>
       </div>
 
       {/* Categories */}
-      {["pending", "approved", "active", "blocked", "eligible"].map((category) => (
+      {["PENDING", "APPROVED", "ACTIVE", "BLOCKED", "ELIGIBLE"].map((category) => (
         <div key={category} className="mb-6">
-          <h4 className="font-semibold mb-2 capitalize">{category}</h4>
-          {units[category].length > 0 ? (
+          <h4 className="font-semibold mb-2 capitalize">{category.toLowerCase()}</h4>
+          {units[category] && units[category].length > 0 ? (
             <ul className="space-y-2">
               {units[category].map((item: any) => (
                 <li key={item.unit.id} className="flex justify-between items-center border p-3 rounded">
-                  <span>{item.unit.name}</span>
-                  {category === "eligible" && (
+                  <span>{item.unit.label}</span>
+                  {category === "ELIGIBLE" && (
                     <Button
                       size="sm"
                       onClick={() => {

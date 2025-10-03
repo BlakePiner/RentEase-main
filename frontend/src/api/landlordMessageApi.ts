@@ -30,6 +30,7 @@ export interface Conversation {
   timeAgo: string;
   createdAt: string;
   updatedAt: string;
+  isInquiry?: boolean; // Flag to identify inquiry conversations
 }
 
 export interface Message {

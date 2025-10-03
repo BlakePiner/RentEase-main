@@ -35,6 +35,7 @@ import {
   getTenantConversationMessagesRequest,
   sendTenantMessageRequest,
   deleteTenantMessageRequest,
+  deleteTenantConversationRequest,
   getTenantMessageStatsRequest,
   type Conversation as TenantConversation,
   type Message as TenantMessage,
@@ -258,21 +259,25 @@ const Messages = () => {
     if (!user) return;
     
     try {
-      // Only landlords can delete conversations for now
       if (user.role === "LANDLORD") {
         await deleteConversationRequest(conversationId);
-        setConversations(prev => prev.filter(conv => conv.id !== conversationId));
-        if (selectedConversation?.id === conversationId) {
-          setSelectedConversation(null);
-          setMessages([]);
-        }
-        toast.success("Conversation deleted successfully");
+      } else if (user.role === "TENANT") {
+        await deleteTenantConversationRequest(conversationId);
       } else {
-        toast.error("Only landlords can delete conversations");
+        toast.error("Unauthorized to delete conversations");
+        return;
       }
+      
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null);
+        setMessages([]);
+      }
+      toast.success("Conversation deleted successfully");
     } catch (err: any) {
       console.error("Error deleting conversation:", err);
-      toast.error("Failed to delete conversation");
+      const errorMessage = err.response?.data?.message || "Failed to delete conversation";
+      toast.error(errorMessage);
     }
     setShowDeleteConversationConfirm(null);
   };
@@ -383,16 +388,28 @@ const Messages = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-gray-900 truncate">
-                          {conversation.title}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-gray-900 truncate">
+                            {conversation.title}
+                          </h3>
+                          {user?.role === "LANDLORD" && conversation.isInquiry && (
+                            <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full font-medium">
+                              Inquiry
+                            </span>
+                          )}
+                          {user?.role === "TENANT" && !conversation.isInquiry && (
+                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                              Current Landlord
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2">
                           {conversation.unreadCount > 0 && (
                             <span className="bg-emerald-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                               {conversation.unreadCount}
                             </span>
                           )}
-                          {user?.role === "LANDLORD" && (
+                          {(user?.role === "LANDLORD" || (user?.role === "TENANT" && conversation.id !== null && conversation.isInquiry)) && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -459,7 +476,7 @@ const Messages = () => {
                     <p className="text-sm text-gray-600">{selectedConversation.otherUser.role}</p>
                   </div>
                 </div>
-                {user?.role === "LANDLORD" && (
+                {(user?.role === "LANDLORD" || (user?.role === "TENANT" && selectedConversation.id !== null && selectedConversation.isInquiry)) && (
                   <Button
                     variant="ghost"
                     size="sm"

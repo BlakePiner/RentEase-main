@@ -15,6 +15,7 @@ import {
   sendTenantMessage,
   createOrGetTenantConversation,
   deleteTenantMessage,
+  deleteTenantConversation,
   getTenantMessageStats,
   downloadLeasePDF
 } from "../controllers/tenant/tenantController.js";
@@ -49,5 +50,6 @@ router.get("/messages/:conversationId", requireAuthentication(["TENANT"]), getTe
 router.post("/messages", requireAuthentication(["TENANT"]), sendTenantMessage);                       // send a message
 router.post("/messages/conversation", requireAuthentication(["TENANT"]), createOrGetTenantConversation); // create or get conversation
 router.delete("/messages/:messageId", requireAuthentication(["TENANT"]), deleteTenantMessage);         // delete a message
+router.delete("/messages/conversation/:conversationId", requireAuthentication(["TENANT"]), deleteTenantConversation); // delete a conversation
 
 export default router;
