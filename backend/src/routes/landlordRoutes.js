@@ -25,7 +25,8 @@ import {
   updateLease, 
   deleteLease, 
   getLeaseStats,
-  getTenants 
+  getTenants,
+  activateLease
 } from "../controllers/landlord/leaseController.js";
 import { 
   getLandlordMaintenanceRequests, 
@@ -42,7 +43,11 @@ import {
   generateBehaviorReport, 
   getTenantStats,
   updateTenantApplicationStatus,
-  removeTenant
+  removeTenant,
+  getAvailableLeasesForTenant,
+  assignLeaseToTenant,
+  getTenantsWithPendingApplications,
+  removeApprovedTenant
 } from "../controllers/landlord/tenantController.js";
 import { 
   getLandlordConversations, 
@@ -114,6 +119,7 @@ router.get("/leases/:leaseId", requireAuthentication(["LANDLORD"]), getLeaseDeta
 router.post("/leases", requireAuthentication(["LANDLORD"]), uploadLeaseDocument, handleFileUploadError, createLease);                                        // create a new lease
 router.put("/leases/:leaseId", requireAuthentication(["LANDLORD"]), uploadLeaseDocument, handleFileUploadError, updateLease);                               // update a lease
 router.delete("/leases/:leaseId", requireAuthentication(["LANDLORD"]), deleteLease);                            // delete a lease
+router.patch("/leases/:leaseId/activate", requireAuthentication(["LANDLORD"]), activateLease);                     // activate a lease
 
 // ---------------------------- Tenants (for lease creation)
 router.get("/tenants/available", requireAuthentication(["LANDLORD"]), getTenants);                               // get all available tenants for lease creation
@@ -134,6 +140,10 @@ router.get("/tenants/:tenantId/screening", requireAuthentication(["LANDLORD"]), 
 router.get("/tenants/:tenantId/behavior-report", requireAuthentication(["LANDLORD"]), generateBehaviorReport);   // generate behavior analysis report
 router.patch("/tenants/applications/:applicationId", requireAuthentication(["LANDLORD"]), updateTenantApplicationStatus); // approve/reject tenant application
 router.delete("/tenants/:tenantId", requireAuthentication(["LANDLORD"]), removeTenant);                             // remove/delete tenant
+router.delete("/tenants/approved/:applicationId", requireAuthentication(["LANDLORD"]), removeApprovedTenant);       // remove approved tenant from history
+router.get("/tenants/:tenantId/units/:unitId/available-leases", requireAuthentication(["LANDLORD"]), getAvailableLeasesForTenant); // get available leases for tenant
+router.post("/tenants/applications/:applicationId/assign-lease", requireAuthentication(["LANDLORD"]), assignLeaseToTenant);        // assign lease to approved tenant
+router.get("/tenants/pending-applications", requireAuthentication(["LANDLORD"]), getTenantsWithPendingApplications);              // get tenants with pending applications
 
 // ---------------------------- Messages
 router.get("/messages", requireAuthentication(["LANDLORD"]), getLandlordConversations);                          // get all conversations

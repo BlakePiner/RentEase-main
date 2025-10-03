@@ -449,3 +449,33 @@ export const removeTenantRequest = async (tenantId: string) => {
   const response = await privateApi.delete(`/landlord/tenants/${tenantId}`);
   return response;
 };
+
+// Get available leases for a tenant and unit
+export const getAvailableLeasesForTenantRequest = async (tenantId: string, unitId: string) => {
+  const response = await privateApi.get(`/landlord/tenants/${tenantId}/units/${unitId}/available-leases`);
+  return response.data;
+};
+
+// Assign a lease to an approved tenant
+export const assignLeaseToTenantRequest = async (applicationId: string, leaseId: string) => {
+  const response = await privateApi.post(`/landlord/tenants/applications/${applicationId}/assign-lease`, {
+    leaseId
+  });
+  return response.data;
+};
+
+// Get tenants with pending applications
+export const getTenantsWithPendingApplicationsRequest = async (unitId?: string) => {
+  try {
+    const params = unitId ? { unitId } : {};
+    console.log('🔍 Calling pending applications API with params:', params);
+    const response = await privateApi.get('/landlord/tenants/pending-applications', { params });
+    console.log('✅ Pending applications API response:', response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error('❌ Pending applications API error:', error);
+    console.error('Error response:', error.response?.data);
+    console.error('Error status:', error.response?.status);
+    throw error;
+  }
+};

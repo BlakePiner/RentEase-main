@@ -22,7 +22,7 @@ import { logoutRequest } from "@/api/authApi";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead, type Notification } from "@/api/notificationApi";
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, type Notification } from "@/api/notificationApi";
 
 // Sidebar configuration for tenants
 const sidebarConfig = [
@@ -310,6 +310,24 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
     }
   };
 
+  // Handle delete notification
+  const handleDeleteNotification = async (notificationId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent notification click
+    try {
+      await deleteNotification(notificationId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      // Decrease unread count if the deleted notification was unread
+      const deletedNotification = notifications.find(n => n.id === notificationId);
+      if (deletedNotification?.status === 'UNREAD') {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      toast.success("Notification deleted");
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      toast.error("Failed to delete notification");
+    }
+  };
+
   // Breadcrumb logic
   useEffect(() => {
     const generateBreadcrumbs = () => {
@@ -473,39 +491,47 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
                       </div>
                     ) : (
                       notifications.map((notification) => (
-                        <Link
+                        <div
                           key={notification.id}
-                          to={notification.link}
-                          onClick={() => handleNotificationClick(notification)}
+                          className={cn(
+                            "p-3 sm:p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 group",
+                            notification.status === "UNREAD" && "bg-green-50"
+                          )}
                         >
-                          <div
-                            className={cn(
-                              "p-3 sm:p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0",
-                              notification.status === "UNREAD" && "bg-green-50"
+                          <div className="flex gap-3">
+                            {notification.status === "UNREAD" && (
+                              <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
                             )}
-                          >
-                            <div className="flex gap-3">
-                              {notification.status === "UNREAD" && (
-                                <div className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0" />
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <p
-                                  className={cn(
-                                    "font-medium text-sm",
-                                    notification.status === "UNREAD"
-                                      ? "text-gray-900"
-                                      : "text-gray-700"
-                                  )}
-                                >
-                                  {notification.message}
-                                </p>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {notification.time}
-                                </p>
-                              </div>
-                            </div>
+                            <Link
+                              to={notification.link}
+                              onClick={() => handleNotificationClick(notification)}
+                              className="flex-1 min-w-0"
+                            >
+                              <p
+                                className={cn(
+                                  "font-medium text-sm",
+                                  notification.status === "UNREAD"
+                                    ? "text-gray-900"
+                                    : "text-gray-700"
+                                )}
+                              >
+                                {notification.message}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {notification.time}
+                              </p>
+                            </Link>
+                            <button
+                              onClick={(e) => handleDeleteNotification(notification.id, e)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-100 rounded text-red-500 hover:text-red-700 flex-shrink-0"
+                              title="Delete notification"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
                           </div>
-                        </Link>
+                        </div>
                       ))
                     )}
                   </div>

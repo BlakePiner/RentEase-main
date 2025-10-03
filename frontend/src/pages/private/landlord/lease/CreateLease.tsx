@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -26,7 +26,7 @@ import {
   type CreateLeaseData 
 } from "@/api/landlordLeaseApi";
 import { getLandlordPropertiesRequest, getPropertyUnitsRequest } from "@/api/landlordPropertyApi";
-import { getTenantsRequest } from "@/api/tenantApi";
+import { getTenantsWithPendingApplicationsRequest } from "@/api/landlordTenantApi";
 import { toast } from "sonner";
 
 interface Property {
@@ -52,6 +52,10 @@ interface Tenant {
   lastName: string | null;
   email: string;
   phoneNumber: string | null;
+  applicationId?: string;
+  unitId?: string;
+  propertyTitle?: string;
+  unitLabel?: string;
 }
 
 const CreateLease = () => {
@@ -69,7 +73,7 @@ const CreateLease = () => {
   // Form data
   const [formData, setFormData] = useState<CreateLeaseData>({
     unitId: "",
-    tenantId: "",
+    tenantId: "", // Will be empty for DRAFT leases, assigned during approval
     leaseNickname: "",
     leaseType: "",
     startDate: "",
@@ -79,23 +83,57 @@ const CreateLease = () => {
     status: "DRAFT",
     hasFormalDocument: false,
     landlordName: "",
-    tenantName: "",
+    tenantName: "", // Will be empty for DRAFT leases
     notes: "",
   });
 
   // Load initial data
   useEffect(() => {
     const fetchInitialData = async () => {
+      // Load properties first (this should work)
       try {
-        const [propertiesRes, tenantsRes] = await Promise.all([
-          getLandlordPropertiesRequest(),
-          getTenantsRequest(),
-        ]);
+        const propertiesRes = await getLandlordPropertiesRequest();
         setProperties(propertiesRes.data);
-        setTenants(tenantsRes.data);
+        console.log("✅ Properties loaded successfully");
       } catch (err) {
-        console.error("Error fetching initial data:", err);
-        toast.error("Failed to load initial data");
+        console.error("❌ Error fetching properties:", err);
+        toast.error("Failed to load properties");
+      }
+
+      // Load tenants with pending applications
+      try {
+        const tenantsRes = await getTenantsWithPendingApplicationsRequest();
+        setTenants(tenantsRes.tenants || []);
+        console.log("✅ Tenants loaded successfully:", tenantsRes.tenants);
+      } catch (err) {
+        console.error("❌ Error fetching tenants with pending applications, using fallback:", err);
+        // Temporary fallback: Load all tenants and filter manually
+        try {
+          const { getLandlordTenantsRequest } = await import("@/api/landlordTenantApi");
+          const allTenantsRes = await getLandlordTenantsRequest();
+          // Filter to only show tenants with pending applications
+          const pendingApplications = allTenantsRes.data.filter((item: any) => 
+            item.type === 'APPLICATION' && item.status === 'PENDING_SCREENING'
+          );
+          // Extract tenant info from applications
+          const tenantsFromApplications = pendingApplications.map((app: any) => ({
+            id: app.tenant.id,
+            firstName: app.tenant.firstName,
+            lastName: app.tenant.lastName,
+            email: app.tenant.email,
+            phoneNumber: app.tenant.phoneNumber,
+            applicationId: app.id,
+            unitId: app.unitId,
+            propertyTitle: app.propertyTitle,
+            unitLabel: app.unitLabel
+          }));
+          setTenants(tenantsFromApplications);
+          console.log("✅ Using fallback - filtered tenants with pending applications:", tenantsFromApplications);
+          toast.success(`Loaded ${tenantsFromApplications.length} tenants with pending applications (using fallback)`);
+        } catch (fallbackErr) {
+          console.error("❌ Fallback also failed:", fallbackErr);
+          toast.error("Failed to load tenants");
+        }
       }
     };
 
@@ -124,6 +162,53 @@ const CreateLease = () => {
 
     fetchUnits();
   }, [selectedPropertyId]);
+
+  // Filter tenants when unit is selected (client-side filtering for now)
+  const filteredTenants = useMemo(() => {
+    // If no unit is selected, show all tenants
+    if (!selectedUnitId || !tenants.length) {
+      console.log('🔍 No unit selected or no tenants, showing all:', tenants.length, 'tenants');
+      return tenants;
+    }
+    
+    // Filter tenants to only show those who applied for the selected unit
+    console.log('🔍 Filtering tenants for unit:', selectedUnitId);
+    console.log('Available tenants:', tenants.map(t => ({ 
+      name: `${t.firstName} ${t.lastName}`, 
+      unitId: t.unitId, 
+      unitIdType: typeof t.unitId,
+      selectedUnitId: selectedUnitId,
+      selectedUnitIdType: typeof selectedUnitId,
+      exactMatch: t.unitId === selectedUnitId,
+      stringMatch: String(t.unitId) === String(selectedUnitId),
+      propertyTitle: t.propertyTitle,
+      unitLabel: t.unitLabel
+    })));
+    
+    // Try multiple matching strategies
+    const filtered = tenants.filter(tenant => {
+      // Strategy 1: Exact match
+      if (tenant.unitId === selectedUnitId) return true;
+      
+      // Strategy 2: String comparison (handles string vs number mismatch)
+      if (String(tenant.unitId) === String(selectedUnitId)) return true;
+      
+      // Strategy 3: If tenant has unitLabel that matches the selected unit's label
+      // (This is a fallback in case unitId doesn't match but it's the same unit)
+      return false;
+    });
+    
+    console.log('Filtered result:', filtered.length, 'tenants');
+    console.log('Filtered tenants:', filtered.map(t => `${t.firstName} ${t.lastName} (unitId: ${t.unitId})`));
+    
+    // If no tenants match, show all tenants (maybe the filtering is too strict)
+    if (filtered.length === 0) {
+      console.log('⚠️ No tenants matched the filter, showing all tenants to avoid empty dropdown');
+      return tenants;
+    }
+    
+    return filtered;
+  }, [tenants, selectedUnitId]);
 
 
   const handleInputChange = (field: keyof CreateLeaseData, value: any) => {
@@ -162,7 +247,8 @@ const CreateLease = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedUnitId || !selectedTenantId || !formData.leaseNickname || !formData.leaseType || !formData.startDate || !formData.rentAmount) {
+    // Validate required fields
+    if (!selectedPropertyId || !selectedUnitId || !selectedTenantId || !formData.leaseNickname || !formData.leaseType || !formData.startDate || !formData.rentAmount) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -202,7 +288,7 @@ const CreateLease = () => {
       }
       
       await createLeaseRequest(submitData);
-      toast.success("Lease created successfully");
+      toast.success("Lease created successfully!");
       navigate("/landlord/leases");
     } catch (err: any) {
       console.error("Error creating lease:", err);
@@ -214,7 +300,7 @@ const CreateLease = () => {
 
   const selectedProperty = properties.find(p => p.id === selectedPropertyId);
   const selectedUnit = units.find(u => u.id === selectedUnitId);
-  const selectedTenant = tenants.find(t => t.id === selectedTenantId);
+  // No selectedTenant needed for DRAFT lease creation
 
   return (
     <div className="space-y-6">
@@ -368,48 +454,36 @@ const CreateLease = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
+                  <User className="h-5 w-5" />
                   Tenant Selection
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="tenant">Tenant *</Label>
-                  <Select value={selectedTenantId} onValueChange={(value) => {
-                    setSelectedTenantId(value);
-                    handleInputChange("tenantId", value);
-                  }}>
+                  <Select value={selectedTenantId} onValueChange={setSelectedTenantId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a tenant" />
                     </SelectTrigger>
                     <SelectContent>
-                      {tenants.map((tenant) => (
+                      {filteredTenants.map((tenant) => (
                         <SelectItem key={tenant.id} value={tenant.id}>
                           {tenant.firstName} {tenant.lastName} ({tenant.email})
+                          {tenant.propertyTitle && tenant.unitLabel && (
+                            <span className="text-xs text-gray-500 ml-2">
+                              - Applied for {tenant.propertyTitle} {tenant.unitLabel}
+                            </span>
+                          )}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {filteredTenants.length === 0 && selectedUnitId && (
+                    <p className="text-sm text-gray-500">
+                      No tenants have applied for this unit yet.
+                    </p>
+                  )}
                 </div>
-
-                {selectedTenant && (
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-sky-500 flex items-center justify-center text-white font-medium">
-                        {selectedTenant.firstName?.charAt(0)}{selectedTenant.lastName?.charAt(0)}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {selectedTenant.firstName} {selectedTenant.lastName}
-                        </p>
-                        <p className="text-sm text-gray-600">{selectedTenant.email}</p>
-                        {selectedTenant.phoneNumber && (
-                          <p className="text-sm text-gray-600">{selectedTenant.phoneNumber}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
@@ -498,15 +572,7 @@ const CreateLease = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="tenantName">Tenant Name</Label>
-                  <Input
-                    id="tenantName"
-                    value={formData.tenantName}
-                    onChange={(e) => handleInputChange("tenantName", e.target.value)}
-                    placeholder="Tenant's full name"
-                  />
-                </div>
+                {/* Tenant Name removed - will be assigned during approval */}
 
                 {/* File Upload Section */}
                 {formData.hasFormalDocument && (
@@ -569,7 +635,7 @@ const CreateLease = () => {
             </Card>
 
             {/* Summary */}
-            {(selectedProperty || selectedUnit || selectedTenant) && (
+            {(selectedProperty || selectedUnit) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -590,14 +656,18 @@ const CreateLease = () => {
                       <p className="font-medium text-gray-900">{selectedUnit.label}</p>
                     </div>
                   )}
-                  {selectedTenant && (
-                    <div>
-                      <span className="text-sm text-gray-600">Tenant:</span>
-                      <p className="font-medium text-gray-900">
-                        {selectedTenant.firstName} {selectedTenant.lastName}
-                      </p>
-                    </div>
-                  )}
+                  {selectedTenantId && (() => {
+                    const selectedTenant = tenants.find(t => t.id === selectedTenantId);
+                    return selectedTenant ? (
+                      <div>
+                        <span className="text-sm text-gray-600">Tenant:</span>
+                        <p className="font-medium text-gray-900">
+                          {selectedTenant.firstName} {selectedTenant.lastName}
+                        </p>
+                        <p className="text-sm text-gray-500">{selectedTenant.email}</p>
+                      </div>
+                    ) : null;
+                  })()}
                   {formData.rentAmount > 0 && (
                     <div>
                       <span className="text-sm text-gray-600">Rent:</span>

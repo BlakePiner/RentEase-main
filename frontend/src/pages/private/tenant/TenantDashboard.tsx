@@ -45,7 +45,12 @@ const TenantDashboard = () => {
         setData(res.data);
       } catch (err: any) {
         if (err.name !== "AbortError") {
+          console.error("=== FRONTEND DASHBOARD ERROR ===");
           console.error("Error fetching dashboard data:", err);
+          console.error("Error response:", err.response);
+          console.error("Error status:", err.response?.status);
+          console.error("Error data:", err.response?.data);
+          console.error("================================");
           toast.error("Failed to fetch dashboard data");
         }
       } finally {

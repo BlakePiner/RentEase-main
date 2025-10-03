@@ -62,7 +62,12 @@ const MyLease = () => {
         setLease(response.data);
       } catch (err: any) {
         if (err.name !== "AbortError") {
+          console.error("=== FRONTEND LEASE ERROR ===");
           console.error("Error fetching lease details:", err);
+          console.error("Error response:", err.response);
+          console.error("Error status:", err.response?.status);
+          console.error("Error data:", err.response?.data);
+          console.error("=============================");
           toast.error("Failed to fetch lease details");
         }
       } finally {

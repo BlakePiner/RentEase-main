@@ -23,6 +23,8 @@ import {
   MessageSquare,
   Trash2,
   UserX,
+  Plus,
+  Check,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { getLandlordTenantsRequest, getTenantStatsRequest, removeTenantRequest } from "@/api/landlordTenantApi";
+import { getLandlordTenantsRequest, getTenantStatsRequest, removeTenantRequest, getAvailableLeasesForTenantRequest, assignLeaseToTenantRequest } from "@/api/landlordTenantApi";
 import TenantApplicationReview from "@/components/TenantApplicationReview";
 import { toast } from "sonner";
 
@@ -91,6 +93,12 @@ const TenantsRefined = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<any>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Lease assignment modal
+  const [showLeaseModal, setShowLeaseModal] = useState(false);
+  const [selectedApplicationForLease, setSelectedApplicationForLease] = useState<any>(null);
+  const [availableLeases, setAvailableLeases] = useState<any[]>([]);
+  const [leaseLoading, setLeaseLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -167,12 +175,19 @@ const TenantsRefined = () => {
     
     setDeleteLoading(true);
     try {
-      // Call the actual API to remove the tenant
-      await removeTenantRequest(tenantToDelete.tenant.id);
+      if (tenantToDelete.type === 'APPROVED_TENANT') {
+        // For approved tenants, delete the application record (removes from history)
+        const { privateApi } = await import("@/api/axios");
+        await privateApi.delete(`/landlord/tenants/approved/${tenantToDelete.id}`);
+        toast.success(`Approved application for ${tenantToDelete.tenant.firstName} ${tenantToDelete.tenant.lastName} has been removed from history`);
+      } else {
+        // For active tenants, remove the tenant completely
+        await removeTenantRequest(tenantToDelete.tenant.id);
+        toast.success(`${tenantToDelete.tenant.firstName} ${tenantToDelete.tenant.lastName} has been removed and can now reapply`);
+      }
       
       // Remove from local state
       setTenantData(prev => prev.filter(item => item.id !== tenantToDelete.id));
-      toast.success(`${tenantToDelete.tenant.firstName} ${tenantToDelete.tenant.lastName} has been removed and can now reapply`);
       setShowDeleteModal(false);
       setTenantToDelete(null);
     } catch (error: any) {
@@ -180,6 +195,58 @@ const TenantsRefined = () => {
       toast.error(error.response?.data?.message || "Failed to remove tenant");
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleAssignLease = async (application: any) => {
+    setSelectedApplicationForLease(application);
+    setLeaseLoading(true);
+    
+    try {
+      // Get available leases for this tenant and unit
+      const response = await getAvailableLeasesForTenantRequest(
+        application.tenant.id, 
+        application.unitId || application.unit?.id
+      );
+      
+      setAvailableLeases(response.availableLeases || []);
+      
+      if (response.availableLeases?.length === 0) {
+        // No leases available - redirect to lease creation
+        toast.info("No available leases found. Redirecting to create a new lease...");
+        // Navigate to lease creation page with pre-filled data
+        window.location.href = `/landlord/leases/create?unitId=${application.unitId || application.unit?.id}&tenantId=${application.tenant.id}`;
+        return;
+      }
+      
+      setShowLeaseModal(true);
+    } catch (error: any) {
+      console.error("Error fetching available leases:", error);
+      toast.error("Failed to fetch available leases");
+    } finally {
+      setLeaseLoading(false);
+    }
+  };
+
+  const confirmAssignLease = async (leaseId: string) => {
+    if (!selectedApplicationForLease) return;
+    
+    setLeaseLoading(true);
+    try {
+      await assignLeaseToTenantRequest(selectedApplicationForLease.id, leaseId);
+      
+      // Refresh the data
+      await refreshData();
+      
+      toast.success(`Lease assigned to ${selectedApplicationForLease.tenant.firstName} ${selectedApplicationForLease.tenant.lastName}`);
+      setShowLeaseModal(false);
+      setSelectedApplicationForLease(null);
+      setAvailableLeases([]);
+    } catch (error: any) {
+      console.error("Error assigning lease:", error);
+      toast.error(error.response?.data?.message || "Failed to assign lease");
+    } finally {
+      setLeaseLoading(false);
     }
   };
 
@@ -536,13 +603,17 @@ const TenantsRefined = () => {
                     {/* Action Buttons */}
                     <div className="mt-4 pt-4 border-t flex gap-2">
                       {item.type === 'APPLICATION' && (
-                        <Button
-                          onClick={() => handleApplicationReview(item)}
-                          className="bg-blue-600 hover:bg-blue-700"
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Review Application
-                        </Button>
+                        <>
+                          <Button
+                            onClick={() => handleApplicationReview(item)}
+                            className="bg-blue-600 hover:bg-blue-700"
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Review Application
+                          </Button>
+                          
+                          {/* Lease is now pre-assigned during creation, so no separate assign button needed */}
+                        </>
                       )}
                       
                       {item.type === 'APPROVED_TENANT' && (
@@ -632,6 +703,86 @@ const TenantsRefined = () => {
                 <Trash2 className="h-4 w-4 mr-2" />
               )}
               Remove
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Lease Assignment Modal */}
+      <Dialog open={showLeaseModal} onOpenChange={setShowLeaseModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Lease</DialogTitle>
+            <DialogDescription>
+              Choose a lease to assign to {selectedApplicationForLease?.tenant?.firstName} {selectedApplicationForLease?.tenant?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {availableLeases.length > 0 ? (
+              <>
+                <p className="text-sm text-gray-600">Available leases for this unit:</p>
+                <div className="space-y-2">
+                  {availableLeases.map((lease: any) => (
+                    <div key={lease.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">{lease.leaseNickname}</h4>
+                          <p className="text-sm text-gray-600">
+                            {lease.leaseType} • ₱{lease.rentAmount?.toLocaleString()}/{lease.interval?.toLowerCase()}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {new Date(lease.startDate).toLocaleDateString()} - {new Date(lease.endDate).toLocaleDateString()}
+                          </p>
+                          {lease.notes && (
+                            <p className="text-xs text-gray-400 mt-1">{lease.notes}</p>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => confirmAssignLease(lease.id)}
+                          className="bg-green-600 hover:bg-green-700"
+                          disabled={leaseLoading}
+                        >
+                          {leaseLoading ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Check className="h-4 w-4 mr-2" />
+                          )}
+                          Assign
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Leases</h3>
+                <p className="text-gray-600 mb-4">
+                  There are no available leases for this unit. You'll need to create a new lease.
+                </p>
+                <Button
+                  onClick={() => {
+                    window.location.href = `/landlord/leases/create?unitId=${selectedApplicationForLease?.unitId || selectedApplicationForLease?.unit?.id}&tenantId=${selectedApplicationForLease?.tenant?.id}`;
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create New Lease
+                </Button>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex gap-3 mt-6">
+            <Button
+              onClick={() => setShowLeaseModal(false)}
+              variant="outline"
+              className="flex-1"
+              disabled={leaseLoading}
+            >
+              Cancel
             </Button>
           </div>
         </DialogContent>

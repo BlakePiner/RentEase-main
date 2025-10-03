@@ -369,7 +369,7 @@ export const createLease = async (req, res) => {
     
     console.log("Owner ID:", ownerId);
 
-    // Validate required fields
+    // Validate required fields - all fields including tenantId are required
     if (!unitId || !tenantId || !leaseNickname || !leaseType || !startDate || !rentAmount || !interval || !status) {
       console.log("ERROR: Missing required fields");
       console.log("unitId:", unitId);
@@ -977,5 +977,90 @@ export const getLeaseStats = async (req, res) => {
   } catch (error) {
     console.error("Error fetching lease statistics:", error);
     return res.status(500).json({ message: "Failed to fetch lease statistics" });
+  }
+};
+
+// ---------------------------------------------- ACTIVATE LEASE ----------------------------------------------
+export const activateLease = async (req, res) => {
+  try {
+    console.log("=== ACTIVATE LEASE DEBUG ===");
+    const ownerId = req.user?.id;
+    const { leaseId } = req.params;
+    
+    console.log("Owner ID:", ownerId);
+    console.log("Lease ID:", leaseId);
+
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized: owner not found" });
+    }
+
+    if (!leaseId) {
+      return res.status(400).json({ message: "Lease ID is required" });
+    }
+
+    // Verify the lease belongs to this landlord
+    const lease = await prisma.lease.findFirst({
+      where: {
+        id: leaseId,
+        unit: {
+          property: {
+            ownerId: ownerId
+          }
+        }
+      },
+      include: {
+        unit: true
+      }
+    });
+
+    console.log("Found lease:", lease ? {
+      id: lease.id,
+      status: lease.status,
+      unitId: lease.unitId,
+      tenantId: lease.tenantId
+    } : "Not found");
+
+    if (!lease) {
+      return res.status(404).json({ message: "Lease not found or you don't have permission to activate it" });
+    }
+
+    if (lease.status === 'ACTIVE') {
+      return res.status(400).json({ message: "Lease is already active" });
+    }
+
+    console.log("Updating lease status from", lease.status, "to ACTIVE");
+
+    // Update lease status to ACTIVE and unit status to OCCUPIED
+    const updatedLease = await prisma.lease.update({
+      where: { id: leaseId },
+      data: { status: 'ACTIVE' }
+    });
+
+    console.log("Lease updated:", {
+      id: updatedLease.id,
+      status: updatedLease.status
+    });
+
+    // Update unit status to OCCUPIED
+    await prisma.unit.update({
+      where: { id: lease.unitId },
+      data: { status: 'OCCUPIED' }
+    });
+
+    console.log(`✅ Lease ${leaseId} activated successfully`);
+    console.log("=== ACTIVATE LEASE COMPLETE ===");
+
+    res.json({
+      message: "Lease activated successfully",
+      lease: updatedLease
+    });
+
+  } catch (error) {
+    console.error("=== ACTIVATE LEASE ERROR ===");
+    console.error("Error activating lease:", error);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("===============================");
+    return res.status(500).json({ message: "Failed to activate lease" });
   }
 };

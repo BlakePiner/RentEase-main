@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,8 +26,9 @@ import {
   Eye,
   Download
 } from "lucide-react";
-import { updateTenantApplicationStatusRequest, type TenantApplication } from "@/api/landlordTenantApi";
+import { updateTenantApplicationStatusRequest, getAvailableLeasesForTenantRequest, assignLeaseToTenantRequest, type TenantApplication } from "@/api/landlordTenantApi";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface TenantApplicationReviewProps {
   application: TenantApplication;
@@ -40,6 +41,12 @@ const TenantApplicationReview = ({ application, onApplicationUpdate, onClose }: 
   const [reviewNotes, setReviewNotes] = useState("");
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<{title: string, url: string} | null>(null);
+  
+  // Lease selection state
+  const [availableLeases, setAvailableLeases] = useState<any[]>([]);
+  const [selectedLeaseId, setSelectedLeaseId] = useState<string>("");
+  const [leasesLoading, setLeasesLoading] = useState(false);
+  const [showLeaseSelection, setShowLeaseSelection] = useState(true); // Always show lease selection
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -58,15 +65,103 @@ const TenantApplicationReview = ({ application, onApplicationUpdate, onClose }: 
     });
   };
 
+  const fetchAvailableLeases = async () => {
+    setLeasesLoading(true);
+    try {
+      console.log("🔍 Fetching leases for tenant:", application.tenant.id, "unit:", application.unit.id);
+      const response = await getAvailableLeasesForTenantRequest(
+        application.tenant.id, 
+        application.unit.id
+      );
+      console.log("📋 API Response:", response);
+      console.log("📋 Available leases:", response.availableLeases);
+      setAvailableLeases(response.availableLeases || []);
+      console.log("✅ Leases set in state:", response.availableLeases);
+    } catch (error: any) {
+      console.error("❌ Error fetching available leases:", error);
+      console.error("❌ Error response:", error.response?.data);
+      // Don't show error toast on initial load, just log it
+      console.log("No available leases or error fetching leases");
+      setAvailableLeases([]);
+    } finally {
+      setLeasesLoading(false);
+    }
+  };
+
+  // Fetch available leases when component mounts
+  useEffect(() => {
+    const loadLeases = async () => {
+      console.log("Loading leases for tenant:", application.tenant.id, "unit:", application.unit.id);
+      await fetchAvailableLeases();
+    };
+    loadLeases();
+  }, [application.tenant.id, application.unit.id]);
+
   const handleApprove = async () => {
     setLoading(true);
     try {
+      // Check if there's already an existing lease for this tenant and unit
+      const existingLeases = await getAvailableLeasesForTenantRequest(application.tenant.id, application.unit.id);
+      
+      if (existingLeases.availableLeases && existingLeases.availableLeases.length > 0) {
+        // Found existing lease(s) - automatically use the first one
+        const leaseToAssign = existingLeases.availableLeases[0];
+        console.log("Found existing lease for tenant, auto-assigning:", leaseToAssign);
+        
+        // Update application status to approved
+        await updateTenantApplicationStatusRequest(application.id, {
+          status: "APPROVED",
+          notes: reviewNotes
+        });
+        
+        // Activate the lease (change status from DRAFT to ACTIVE)
+        try {
+          const { privateApi } = await import("@/api/axios");
+          const response = await privateApi.patch(`/landlord/leases/${leaseToAssign.id}/activate`);
+          console.log("✅ Lease activated successfully:", response.data);
+        } catch (leaseError) {
+          console.error("❌ Error activating lease:", leaseError);
+          console.error("❌ Lease error response:", leaseError.response?.data);
+          // Continue anyway - the application is approved, but lease activation failed
+          toast.error("Application approved, but failed to activate lease. Please activate manually.");
+        }
+        
+        toast.success(`Application approved! Lease "${leaseToAssign.leaseNickname}" has been activated for this tenant.`);
+        onApplicationUpdate();
+        onClose();
+      } else {
+        // No existing lease found - proceed with the lease selection flow
+        if (!selectedLeaseId) {
+          toast.error("Please select a lease to assign to this tenant");
+          return;
+        }
+        await confirmApproval();
+      }
+    } catch (error: any) {
+      console.error("Error in approval process:", error);
+      toast.error(error.response?.data?.message || "Failed to approve application");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmApproval = async () => {
+    setLoading(true);
+    try {
+      // First approve the application
       await updateTenantApplicationStatusRequest(application.id, {
         status: 'APPROVED',
         notes: reviewNotes
       });
       
-      toast.success("Application approved! Draft lease has been created.");
+      // If a lease is selected, assign it
+      if (selectedLeaseId) {
+        await assignLeaseToTenantRequest(application.id, selectedLeaseId);
+        toast.success("Application approved and lease assigned successfully!");
+      } else {
+        toast.success("Application approved successfully! You can assign a lease later.");
+      }
+      
       onApplicationUpdate();
       onClose();
     } catch (error: any) {
@@ -438,6 +533,100 @@ const TenantApplicationReview = ({ application, onApplicationUpdate, onClose }: 
         </CardContent>
       </Card>
 
+      {/* Lease Assignment */}
+      {showLeaseSelection && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Lease Assignment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {leasesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                <span>Loading assigned lease...</span>
+              </div>
+            ) : (() => {
+              // Find the lease that's specifically assigned to this tenant
+              const assignedLease = availableLeases.find(lease => lease.tenantId === application.tenant.id);
+              
+              if (assignedLease) {
+                // Display the assigned lease
+                return (
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium text-green-700">
+                      Assigned lease for this tenant
+                    </Label>
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-green-900">{assignedLease.leaseNickname}</h4>
+                          <p className="text-sm text-green-700 mt-1">
+                            {assignedLease.leaseType} • ₱{assignedLease.rentAmount?.toLocaleString()}/{assignedLease.interval?.toLowerCase()}
+                          </p>
+                          <p className="text-sm text-green-600 mt-1">
+                            {new Date(assignedLease.startDate).toLocaleDateString()} - {new Date(assignedLease.endDate).toLocaleDateString()}
+                          </p>
+                          {assignedLease.notes && (
+                            <p className="text-sm text-gray-600 mt-2 italic">
+                              "{assignedLease.notes}"
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant="secondary" className="bg-green-100 text-green-800">
+                          Assigned
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-blue-50 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        ✓ This lease is already assigned to this tenant. Approving the application will activate the lease.
+                      </p>
+                    </div>
+                  </div>
+                );
+              } else {
+                // No assigned lease found - show creation option
+                return (
+                  <div className="text-center py-6">
+                    <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Assigned Lease</h3>
+                    <p className="text-gray-600 mb-4">
+                      No lease has been assigned to this tenant yet. Create a lease first before approving the application.
+                    </p>
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => {
+                          window.open(`/landlord/leases/create?unitId=${application.unit.id}&tenantId=${application.tenant.id}`, '_blank');
+                        }}
+                        variant="outline"
+                        className="w-full text-blue-600 border-blue-200 hover:bg-blue-50"
+                      >
+                        <FileText className="h-4 w-4 mr-2" />
+                        Create Lease for This Tenant
+                      </Button>
+                      <Button 
+                        onClick={fetchAvailableLeases}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs"
+                        disabled={leasesLoading}
+                      >
+                        {leasesLoading ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          "🔄"
+                        )}
+                        Refresh
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Action Buttons */}
       <div className="flex gap-4 pt-6 border-t">
         <Button
@@ -464,14 +653,14 @@ const TenantApplicationReview = ({ application, onApplicationUpdate, onClose }: 
         <Button
           onClick={handleApprove}
           className="flex-1 bg-green-600 hover:bg-green-700"
-          disabled={loading}
+          disabled={loading || leasesLoading}
         >
           {loading ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
           ) : (
             <Check className="h-4 w-4 mr-2" />
           )}
-          Approve & Create Draft Lease
+          Approve Application
         </Button>
       </div>
 

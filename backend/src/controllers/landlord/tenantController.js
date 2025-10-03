@@ -13,14 +13,27 @@ export const getLandlordTenants = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized: owner not found" });
     }
 
-    // Get tenant applications for this landlord's properties
+    // Get tenant applications for this landlord's properties (only pending ones, not approved)
     const applications = await prisma.tenantScreening.findMany({
       where: {
         unit: {
           property: {
             ownerId: ownerId
           }
-        }
+        },
+        // Only include applications that haven't been approved or rejected
+        OR: [
+          {
+            aiScreeningSummary: null // New applications without screening summary
+          },
+          {
+            aiScreeningSummary: {
+              not: {
+                contains: "APPROVED"
+              }
+            }
+          }
+        ]
       },
       include: {
         tenant: {
@@ -52,7 +65,50 @@ export const getLandlordTenants = async (req, res) => {
       orderBy: { createdAt: "desc" }
     });
 
-    // Also get existing tenants with leases (both DRAFT and ACTIVE)
+    // Get approved tenants (those who have been approved, regardless of lease status)
+    // This acts as a history of all approved applications
+    const approvedApplications = await prisma.tenantScreening.findMany({
+      where: {
+        unit: {
+          property: {
+            ownerId: ownerId
+          }
+        },
+        aiScreeningSummary: {
+          contains: "APPROVED"
+        }
+      },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+            avatarUrl: true,
+            createdAt: true
+          }
+        },
+        unit: {
+          include: {
+            property: {
+              select: {
+                id: true,
+                title: true,
+                street: true,
+                barangay: true,
+                city: { select: { name: true } },
+                municipality: { select: { name: true } }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { updatedAt: "desc" }
+    });
+
+    // Also get existing tenants with leases (only ACTIVE leases, not DRAFT)
     const existingTenants = await prisma.user.findMany({
       where: {
         role: "TENANT",
@@ -64,9 +120,7 @@ export const getLandlordTenants = async (req, res) => {
                 ownerId: ownerId
               }
             },
-            status: {
-              in: ["DRAFT", "ACTIVE"]
-            }
+            status: "ACTIVE" // Only ACTIVE leases
           }
         }
       },
@@ -78,9 +132,7 @@ export const getLandlordTenants = async (req, res) => {
                 ownerId: ownerId
               }
             },
-            status: {
-              in: ["DRAFT", "ACTIVE"]
-            }
+            status: "ACTIVE" // Only ACTIVE leases
           },
           include: {
             unit: {
@@ -276,10 +328,45 @@ export const getLandlordTenants = async (req, res) => {
       };
     });
 
-    // Combine applications and existing tenants
-    const allTenantData = [...formattedApplications, ...formattedTenants];
+    // Format approved tenants (history of all approved applications)
+    const formattedApprovedTenants = approvedApplications.map((app) => ({
+      id: app.id,
+      type: 'APPROVED_TENANT',
+      status: 'APPROVED',
+      approvedAt: app.updatedAt,
+      submittedAt: app.createdAt,
+      tenant: {
+        id: app.tenant.id,
+        firstName: app.tenant.firstName,
+        lastName: app.tenant.lastName,
+        email: app.tenant.email,
+        phoneNumber: app.tenant.phoneNumber,
+        avatarUrl: app.tenant.avatarUrl,
+        createdAt: app.tenant.createdAt
+      },
+      unit: {
+        id: app.unit.id,
+        label: app.unit.label,
+        targetPrice: app.unit.targetPrice,
+        property: {
+          id: app.unit.property.id,
+          title: app.unit.property.title,
+          address: `${app.unit.property.street}, ${app.unit.property.barangay}, ${app.unit.property.city?.name || app.unit.property.municipality?.name || ''}`
+        }
+      },
+      unitId: app.unitId,
+      propertyTitle: app.unit.property.title,
+      unitLabel: app.unit.label,
+      riskAssessment: {
+        riskLevel: app.screeningRiskLevel || 'LOW',
+        aiScreeningSummary: app.aiScreeningSummary
+      }
+    }));
 
-    console.log(`✅ Returning ${formattedApplications.length} applications and ${formattedTenants.length} existing tenants`);
+    // Combine applications, approved tenants, and existing tenants
+    const allTenantData = [...formattedApplications, ...formattedApprovedTenants, ...formattedTenants];
+
+    console.log(`✅ Returning ${formattedApplications.length} applications, ${formattedApprovedTenants.length} approved tenants, and ${formattedTenants.length} active tenants`);
     console.log("📤 Final response data:", JSON.stringify(allTenantData, null, 2));
     return res.json(allTenantData);
   } catch (error) {
@@ -342,33 +429,22 @@ export const updateTenantApplicationStatus = async (req, res) => {
     }
 
     if (status === 'APPROVED') {
-      // Create a DRAFT lease for the approved tenant (landlord can activate it later)
-      const lease = await prisma.lease.create({
+      // Just approve the application - don't create lease automatically
+      // Update the application status instead of deleting it
+      await prisma.tenantScreening.update({
+        where: { id: applicationId },
         data: {
-          tenantId: application.tenantId,
-          unitId: application.unitId,
-          leaseNickname: `${application.unit.property.title} - ${application.unit.label}`,
-          leaseType: 'STANDARD',
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
-          rentAmount: application.unit.targetPrice,
-          interval: 'MONTHLY',
-          status: 'DRAFT', // Create as DRAFT instead of ACTIVE
-          hasFormalDocument: false,
-          notes: notes || 'Lease created from approved application - ready for activation'
+          // Use aiScreeningSummary to store approval notes since notes field doesn't exist
+          aiScreeningSummary: `APPROVED: ${notes || 'Application approved - awaiting lease assignment'}`
         }
       });
-
-      // Don't update unit status yet - only when lease becomes ACTIVE
-      // Unit remains AVAILABLE until lease is activated
-      // Note: Unit status should only change to OCCUPIED when lease status becomes ACTIVE
 
       // Create notification for tenant
       await prisma.notification.create({
         data: {
           userId: application.tenantId,
           type: 'APPLICATION',
-          message: `Congratulations! Your application for ${application.unit.property.title} - ${application.unit.label} has been approved! A lease has been prepared for you.`,
+          message: `Congratulations! Your application for ${application.unit.property.title} - ${application.unit.label} has been approved! The landlord will assign you a lease soon.`,
           status: 'UNREAD'
         }
       });
@@ -377,25 +453,17 @@ export const updateTenantApplicationStatus = async (req, res) => {
       await prisma.notification.create({
         data: {
           userId: ownerId,
-          type: 'LEASE',
-          message: `Draft lease created for approved tenant application: ${application.unit.property.title} - ${application.unit.label}`,
+          type: 'APPLICATION',
+          message: `Application approved for ${application.unit.property.title} - ${application.unit.label}. Please assign a lease to the tenant.`,
           status: 'UNREAD'
         }
       });
 
-      // Delete the application since it's now converted to a lease
-      await prisma.tenantScreening.delete({
-        where: { id: applicationId }
-      });
-
       res.json({
-        message: "Application approved and draft lease created successfully",
-        lease: {
-          id: lease.id,
-          status: lease.status,
-          startDate: lease.startDate,
-          endDate: lease.endDate
-        }
+        message: "Application approved successfully. Please assign a lease to the tenant.",
+        applicationId: applicationId,
+        tenantId: application.tenantId,
+        unitId: application.unitId
       });
     } else {
       // Rejected - just delete the application
@@ -1421,5 +1489,419 @@ export const removeTenant = async (req, res) => {
   } catch (error) {
     console.error("Error removing tenant:", error);
     return res.status(500).json({ message: "Failed to remove tenant" });
+  }
+};
+
+// ---------------------------------------------- GET AVAILABLE LEASES FOR TENANT ----------------------------------------------
+export const getAvailableLeasesForTenant = async (req, res) => {
+  try {
+    console.log("=== GET AVAILABLE LEASES FOR TENANT ===");
+    const ownerId = req.user?.id;
+    const { tenantId, unitId } = req.params;
+    
+    console.log("Owner ID:", ownerId);
+    console.log("Tenant ID:", tenantId);
+    console.log("Unit ID:", unitId);
+
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized: owner not found" });
+    }
+
+    if (!tenantId || !unitId) {
+      return res.status(400).json({ message: "Tenant ID and Unit ID are required" });
+    }
+
+    // Get available draft leases for this unit by this landlord
+    // Look for leases that are either assigned to this tenant OR are unassigned (DRAFT with no tenant)
+    const availableLeases = await prisma.lease.findMany({
+      where: {
+        unit: {
+          property: {
+            ownerId: ownerId
+          }
+        },
+        unitId: unitId,
+        status: 'DRAFT',
+        // Include leases assigned to this tenant OR unassigned leases
+        OR: [
+          {
+            tenantId: tenantId // Leases already assigned to this tenant
+          },
+          {
+            tenantId: null // Unassigned leases
+          }
+        ]
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              select: {
+                title: true
+              }
+            }
+          }
+        },
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    console.log(`Found ${availableLeases.length} available leases`);
+    console.log("Leases details:", availableLeases.map(lease => ({
+      id: lease.id,
+      leaseNickname: lease.leaseNickname,
+      tenantId: lease.tenantId,
+      status: lease.status,
+      tenant: lease.tenant ? `${lease.tenant.firstName} ${lease.tenant.lastName}` : 'No tenant'
+    })));
+
+    const formattedLeases = availableLeases.map(lease => ({
+      id: lease.id,
+      leaseNickname: lease.leaseNickname,
+      leaseType: lease.leaseType,
+      rentAmount: lease.rentAmount,
+      interval: lease.interval,
+      startDate: lease.startDate,
+      endDate: lease.endDate,
+      notes: lease.notes,
+      createdAt: lease.createdAt,
+      tenantId: lease.tenantId, // Include tenantId for frontend logic
+      property: lease.unit.property.title,
+      unit: lease.unit.label
+    }));
+
+    console.log("Formatted leases:", formattedLeases);
+
+    res.json({
+      availableLeases: formattedLeases
+    });
+
+  } catch (error) {
+    console.error("Error fetching available leases:", error);
+    return res.status(500).json({ message: "Failed to fetch available leases" });
+  }
+};
+
+// ---------------------------------------------- ASSIGN LEASE TO TENANT ----------------------------------------------
+export const assignLeaseToTenant = async (req, res) => {
+  try {
+    const ownerId = req.user?.id;
+    const { applicationId } = req.params;
+    const { leaseId } = req.body;
+
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized: owner not found" });
+    }
+
+    if (!applicationId || !leaseId) {
+      return res.status(400).json({ message: "Application ID and Lease ID are required" });
+    }
+
+    // Get the application
+    const application = await prisma.tenantScreening.findUnique({
+      where: { id: applicationId },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
+          }
+        },
+        unit: {
+          include: {
+            property: {
+              select: {
+                title: true,
+                ownerId: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    if (application.unit.property.ownerId !== ownerId) {
+      return res.status(403).json({ message: "You can only assign leases for your own properties" });
+    }
+
+    // Get the lease
+    const lease = await prisma.lease.findUnique({
+      where: { id: leaseId },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            email: true
+          }
+        },
+        unit: {
+          include: {
+            property: {
+              select: {
+                ownerId: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!lease) {
+      return res.status(404).json({ message: "Lease not found" });
+    }
+
+    if (lease.unit.property.ownerId !== ownerId) {
+      return res.status(403).json({ message: "You can only assign your own leases" });
+    }
+
+    // Check if lease is available (either no tenant or placeholder tenant)
+    const isPlaceholderTenant = lease.tenant?.email === 'draft-placeholder@rentease.system';
+    
+    if (lease.tenantId && !isPlaceholderTenant) {
+      return res.status(400).json({ message: "This lease is already assigned to another tenant" });
+    }
+
+    if (lease.unitId !== application.unitId) {
+      return res.status(400).json({ message: "Lease unit does not match application unit" });
+    }
+
+    // Assign the lease to the tenant (replace placeholder or assign to unassigned lease)
+    const updatedLease = await prisma.lease.update({
+      where: { id: leaseId },
+      data: {
+        tenantId: application.tenantId,
+        tenantName: `${application.tenant.firstName} ${application.tenant.lastName}`,
+        notes: `${lease.notes || ''}\nAssigned to ${application.tenant.firstName} ${application.tenant.lastName} from approved application.`
+      }
+    });
+
+    // Delete the application since it's now converted to a lease
+    await prisma.tenantScreening.delete({
+      where: { id: applicationId }
+    });
+
+    // Create notification for tenant
+    await prisma.notification.create({
+      data: {
+        userId: application.tenantId,
+        type: 'LEASE',
+        message: `A lease has been assigned to you for ${application.unit.property.title} - ${application.unit.label}. Please review the lease details.`,
+        status: 'UNREAD'
+      }
+    });
+
+    res.json({
+      message: "Lease assigned successfully",
+      lease: {
+        id: updatedLease.id,
+        leaseNickname: updatedLease.leaseNickname,
+        status: updatedLease.status,
+        startDate: updatedLease.startDate,
+        endDate: updatedLease.endDate
+      }
+    });
+
+  } catch (error) {
+    console.error("Error assigning lease to tenant:", error);
+    return res.status(500).json({ message: "Failed to assign lease" });
+  }
+};
+
+// ---------------------------------------------- GET TENANTS WITH PENDING APPLICATIONS ----------------------------------------------
+export const getTenantsWithPendingApplications = async (req, res) => {
+  try {
+    console.log("🚀 getTenantsWithPendingApplications called");
+    console.log("📋 Request query:", req.query);
+    console.log("👤 Request user:", req.user);
+    
+    const ownerId = req.user?.id;
+    const { unitId } = req.query;
+
+    if (!ownerId) {
+      console.log("❌ No owner ID found");
+      return res.status(401).json({ message: "Unauthorized: owner not found" });
+    }
+
+    console.log(`🔍 Getting tenants with pending applications for owner: ${ownerId}, unitId: ${unitId}`);
+
+    // Build where clause
+    let whereClause = {
+      unit: {
+        property: {
+          ownerId: ownerId
+        }
+      }
+    };
+
+    // If unitId is specified, filter by specific unit
+    if (unitId) {
+      whereClause.unitId = unitId;
+    }
+
+    // Get all pending applications for this landlord's properties (only non-approved ones)
+    const pendingApplications = await prisma.tenantScreening.findMany({
+      where: {
+        ...whereClause,
+        // Only include applications that haven't been approved or rejected
+        OR: [
+          {
+            aiScreeningSummary: null // New applications without screening summary
+          },
+          {
+            aiScreeningSummary: {
+              not: {
+                contains: "APPROVED"
+              }
+            }
+          }
+        ]
+      },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true
+          }
+        },
+        unit: {
+          include: {
+            property: {
+              select: {
+                id: true,
+                title: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    console.log(`📋 Found ${pendingApplications.length} pending applications`);
+
+    // Extract unique tenants from applications
+    const uniqueTenants = [];
+    const seenTenantIds = new Set();
+
+    pendingApplications.forEach(application => {
+      if (!seenTenantIds.has(application.tenant.id)) {
+        seenTenantIds.add(application.tenant.id);
+        uniqueTenants.push({
+          id: application.tenant.id,
+          firstName: application.tenant.firstName,
+          lastName: application.tenant.lastName,
+          email: application.tenant.email,
+          phoneNumber: application.tenant.phoneNumber,
+          applicationId: application.id,
+          unitId: application.unitId,
+          propertyTitle: application.unit.property.title,
+          unitLabel: application.unit.label
+        });
+      }
+    });
+
+    console.log(`👥 Returning ${uniqueTenants.length} unique tenants with pending applications`);
+
+    res.json({
+      tenants: uniqueTenants,
+      totalApplications: pendingApplications.length
+    });
+
+  } catch (error) {
+    console.error("Error fetching tenants with pending applications:", error);
+    return res.status(500).json({ message: "Failed to fetch tenants with pending applications" });
+  }
+};
+
+// ---------------------------------------------- REMOVE APPROVED TENANT (DELETE APPLICATION RECORD) ----------------------------------------------
+export const removeApprovedTenant = async (req, res) => {
+  try {
+    const ownerId = req.user?.id;
+    const { applicationId } = req.params;
+
+    if (!ownerId) {
+      return res.status(401).json({ message: "Unauthorized: owner not found" });
+    }
+
+    if (!applicationId) {
+      return res.status(400).json({ message: "Application ID is required" });
+    }
+
+    // Get the application and verify ownership
+    const application = await prisma.tenantScreening.findFirst({
+      where: {
+        id: applicationId,
+        unit: {
+          property: {
+            ownerId: ownerId
+          }
+        }
+      },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        unit: {
+          include: {
+            property: {
+              select: {
+                title: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!application) {
+      return res.status(404).json({ message: "Application not found or you don't have permission to delete it" });
+    }
+
+    // Delete the application record (this removes it from approved tenants history)
+    await prisma.tenantScreening.delete({
+      where: { id: applicationId }
+    });
+
+    // Send notification to tenant
+    await prisma.notification.create({
+      data: {
+        userId: application.tenant.id,
+        type: 'APPLICATION',
+        message: `Your approved application for ${application.unit.property.title} - ${application.unit.label} has been removed by the landlord.`,
+        status: 'UNREAD'
+      }
+    });
+
+    console.log(`✅ Approved application ${applicationId} removed successfully`);
+
+    res.json({
+      message: `Successfully removed approved application for ${application.tenant.firstName} ${application.tenant.lastName}`,
+      tenantName: `${application.tenant.firstName} ${application.tenant.lastName}`,
+      property: `${application.unit.property.title} - ${application.unit.label}`
+    });
+
+  } catch (error) {
+    console.error("Error removing approved tenant:", error);
+    return res.status(500).json({ message: "Failed to remove approved tenant" });
   }
 };

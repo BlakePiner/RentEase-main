@@ -16,15 +16,23 @@ function formatPropertyAddress(property) {
 export const getTenantDashboardData = async (req, res) => {
   try {
     const tenantId = req.user?.id;
+    console.log("=== TENANT DASHBOARD DEBUG ===");
+    console.log("Tenant ID:", tenantId);
+    console.log("Full req.user:", req.user);
+    
     if (!tenantId) {
+      console.log("❌ No tenant ID found in req.user");
       return res.status(401).json({ message: "Unauthorized: tenant not found" });
     }
 
-    // Get current active lease
+    // Get current active lease (including DRAFT leases that are assigned to this tenant)
     const currentLease = await prisma.lease.findFirst({
       where: {
         tenantId: tenantId,
-        status: "ACTIVE"
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" } // Include DRAFT leases as they are assigned to the tenant
+        ]
       },
       include: {
         unit: {
@@ -45,35 +53,73 @@ export const getTenantDashboardData = async (req, res) => {
       }
     });
 
+    console.log("Found lease:", currentLease ? {
+      id: currentLease.id,
+      status: currentLease.status,
+      leaseNickname: currentLease.leaseNickname,
+      tenantId: currentLease.tenantId
+    } : "No lease found");
+
+    // If no lease found, let's check if there are ANY leases for this tenant
+    if (!currentLease) {
+      const anyLeases = await prisma.lease.findMany({
+        where: { tenantId: tenantId },
+        select: { id: true, status: true, tenantId: true, leaseNickname: true }
+      });
+      console.log("All leases for this tenant:", anyLeases);
+      
+      // Also check if there are leases with different tenant IDs
+      const allLeases = await prisma.lease.findMany({
+        select: { id: true, status: true, tenantId: true, leaseNickname: true }
+      });
+      console.log("All leases in database:", allLeases);
+    }
+
+    console.log("=== TENANT DASHBOARD COMPLETE ===");
+    console.log("Current lease exists:", !!currentLease);
+    console.log("Dashboard data will be:", currentLease ? "WITH lease data" : "WITHOUT lease data");
+
     // Get all leases for this tenant
     const allLeases = await prisma.lease.findMany({
       where: {
         tenantId: tenantId
       },
       include: {
-        payments: true,
-        maintenanceRequests: {
-          include: {
-            property: {
-              select: {
-                id: true,
-                title: true,
-                street: true,
-                barangay: true,
-                zipCode: true,
-                city: true,
-                municipality: true
-              }
-            },
-            unit: {
-              select: {
-                id: true,
-                label: true
-              }
+        payments: true
+      }
+    });
+
+    // Get maintenance requests for this tenant's leases
+    const allMaintenanceRequests = await prisma.maintenanceRequest.findMany({
+      where: {
+        unit: {
+          Lease: {
+            some: {
+              tenantId: tenantId
             }
           }
         }
-      }
+      },
+      include: {
+        property: {
+          select: {
+            id: true,
+            title: true,
+            street: true,
+            barangay: true,
+            zipCode: true,
+            city: true,
+            municipality: true
+          }
+        },
+        unit: {
+          select: {
+            id: true,
+            label: true
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
     });
 
     // Calculate overview statistics
@@ -90,7 +136,6 @@ export const getTenantDashboardData = async (req, res) => {
       new Date(payment.dueDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     ).length;
 
-    const allMaintenanceRequests = allLeases.flatMap(lease => lease.maintenanceRequests);
     const maintenanceRequests = allMaintenanceRequests.length;
 
     // Check for leases ending soon (within 30 days)
@@ -230,8 +275,13 @@ export const getTenantDashboardData = async (req, res) => {
     };
 
     res.json(dashboardData);
+    console.log("✅ Dashboard data sent successfully");
   } catch (error) {
+    console.error("=== TENANT DASHBOARD ERROR ===");
     console.error("Error fetching tenant dashboard data:", error);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("===============================");
     res.status(500).json({ message: "Failed to fetch dashboard data" });
   }
 };
@@ -240,6 +290,9 @@ export const getTenantDashboardData = async (req, res) => {
 export const getTenantLeaseDetails = async (req, res) => {
   try {
     const tenantId = req.user?.id;
+    console.log("=== TENANT LEASE DETAILS DEBUG ===");
+    console.log("Tenant ID:", tenantId);
+    
     if (!tenantId) {
       return res.status(401).json({ message: "Unauthorized: tenant not found" });
     }
@@ -247,7 +300,10 @@ export const getTenantLeaseDetails = async (req, res) => {
     const lease = await prisma.lease.findFirst({
       where: {
         tenantId: tenantId,
-        status: "ACTIVE"
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" } // Include DRAFT leases as they are assigned to the tenant
+        ]
       },
       include: {
         unit: {
@@ -272,8 +328,16 @@ export const getTenantLeaseDetails = async (req, res) => {
       }
     });
 
+    console.log("Found lease for details:", lease ? {
+      id: lease.id,
+      status: lease.status,
+      leaseNickname: lease.leaseNickname,
+      tenantId: lease.tenantId
+    } : "No lease found");
+
     if (!lease) {
-      return res.status(404).json({ message: "No active lease found" });
+      console.log("❌ No lease found for tenant");
+      return res.status(404).json({ message: "No lease found" });
     }
 
     // Calculate payment statistics
@@ -432,8 +496,13 @@ export const getTenantLeaseDetails = async (req, res) => {
     };
 
     res.json(leaseDetails);
+    console.log("✅ Lease details sent successfully");
   } catch (error) {
+    console.error("=== TENANT LEASE DETAILS ERROR ===");
     console.error("Error fetching tenant lease details:", error);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("===============================");
     res.status(500).json({ message: "Failed to fetch lease details" });
   }
 };
