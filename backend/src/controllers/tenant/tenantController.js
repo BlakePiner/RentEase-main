@@ -311,7 +311,17 @@ export const getTenantLeaseDetails = async (req, res) => {
             property: {
               include: {
                 city: true,
-                municipality: true
+                municipality: true,
+                owner: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phoneNumber: true,
+                    avatarUrl: true
+                  }
+                }
               }
             },
             amenities: true
@@ -319,16 +329,6 @@ export const getTenantLeaseDetails = async (req, res) => {
         },
         payments: {
           orderBy: { createdAt: "desc" }
-        },
-        landlord: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phoneNumber: true,
-            avatarUrl: true
-          }
         }
       }
     });
@@ -454,12 +454,12 @@ export const getTenantLeaseDetails = async (req, res) => {
         }
       },
       landlord: {
-        id: lease.landlord.id,
-        firstName: lease.landlord.firstName,
-        lastName: lease.landlord.lastName,
-        email: lease.landlord.email,
-        phoneNumber: lease.landlord.phoneNumber,
-        avatarUrl: lease.landlord.avatarUrl
+        id: lease.unit.property.owner.id,
+        firstName: lease.unit.property.owner.firstName,
+        lastName: lease.unit.property.owner.lastName,
+        email: lease.unit.property.owner.email,
+        phoneNumber: lease.unit.property.owner.phoneNumber,
+        avatarUrl: lease.unit.property.owner.avatarUrl
       },
       paymentStats: {
         total: totalPayments,
@@ -1233,7 +1233,38 @@ export const getTenantConversations = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized: tenant not found" });
     }
 
-    // Get all conversations where the tenant is either userA or userB
+    // First, get the tenant's assigned landlord from their lease
+    const currentLease = await prisma.lease.findFirst({
+      where: {
+        tenantId: tenantId,
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" }
+        ]
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              include: {
+                owner: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    avatarUrl: true,
+                    role: true,
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Get all existing conversations where the tenant is either userA or userB
     const conversations = await prisma.conversation.findMany({
       where: {
         OR: [
@@ -1346,7 +1377,48 @@ export const getTenantConversations = async (req, res) => {
       };
     });
 
-    res.json(formattedConversations);
+    // If the tenant has an assigned landlord, check if there's already a conversation with them
+    let landlordConversation = null;
+    if (currentLease && currentLease.unit.property.owner) {
+      const landlord = currentLease.unit.property.owner;
+      
+      // Check if there's already a conversation with this landlord
+      const existingConversation = formattedConversations.find(conv => 
+        conv.otherUser.id === landlord.id
+      );
+      
+      if (!existingConversation) {
+        // Create a virtual conversation entry for the landlord
+        landlordConversation = {
+          id: null, // No conversation ID yet
+          title: `${landlord.firstName || ''} ${landlord.lastName || ''}`.trim() || landlord.email,
+          otherUser: {
+            id: landlord.id,
+            firstName: landlord.firstName,
+            lastName: landlord.lastName,
+            email: landlord.email,
+            avatarUrl: landlord.avatarUrl,
+            role: landlord.role,
+            fullName: `${landlord.firstName || ''} ${landlord.lastName || ''}`.trim() || landlord.email,
+          },
+          lastMessage: null,
+          unreadCount: 0,
+          timeAgo: null,
+          createdAt: null,
+          updatedAt: null,
+          isLandlord: true, // Flag to indicate this is the assigned landlord
+        };
+      }
+    }
+
+    // Combine existing conversations with the landlord entry
+    const allConversations = [];
+    if (landlordConversation) {
+      allConversations.push(landlordConversation);
+    }
+    allConversations.push(...formattedConversations);
+
+    res.json(allConversations);
   } catch (error) {
     console.error("Error fetching tenant conversations:", error);
     res.status(500).json({ message: "Failed to fetch conversations" });
@@ -1479,36 +1551,63 @@ export const getTenantConversationMessages = async (req, res) => {
 // ---------------------------------------------- SEND TENANT MESSAGE ----------------------------------------------
 export const sendTenantMessage = async (req, res) => {
   try {
-    const { conversationId, content } = req.body;
+    const { conversationId, content, recipientId } = req.body;
     const senderId = req.user?.id;
 
     if (!senderId) {
       return res.status(401).json({ message: "Unauthorized: user not found" });
     }
 
-    if (!conversationId || !content) {
-      return res.status(400).json({ message: "Conversation ID and content are required" });
+    if (!content) {
+      return res.status(400).json({ message: "Content is required" });
     }
 
-    // Verify the conversation belongs to the user
-    const conversation = await prisma.conversation.findFirst({
-      where: {
-        id: conversationId,
-        OR: [
-          { userAId: senderId },
-          { userBId: senderId }
-        ]
-      }
-    });
+    let conversation;
 
-    if (!conversation) {
-      return res.status(404).json({ message: "Conversation not found or not accessible" });
+    if (conversationId) {
+      // Existing conversation
+      conversation = await prisma.conversation.findFirst({
+        where: {
+          id: conversationId,
+          OR: [
+            { userAId: senderId },
+            { userBId: senderId }
+          ]
+        }
+      });
+
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found or not accessible" });
+      }
+    } else if (recipientId) {
+      // New conversation - check if one already exists
+      conversation = await prisma.conversation.findFirst({
+        where: {
+          OR: [
+            { userAId: senderId, userBId: recipientId },
+            { userAId: recipientId, userBId: senderId }
+          ]
+        }
+      });
+
+      if (!conversation) {
+        // Create new conversation
+        conversation = await prisma.conversation.create({
+          data: {
+            userAId: senderId,
+            userBId: recipientId,
+            title: null, // Will be auto-generated
+          }
+        });
+      }
+    } else {
+      return res.status(400).json({ message: "Either conversationId or recipientId is required" });
     }
 
     // Create the message
     const message = await prisma.message.create({
       data: {
-        conversationId: conversationId,
+        conversationId: conversation.id,
         senderId: senderId,
         content: content.trim(),
       },
@@ -1528,7 +1627,7 @@ export const sendTenantMessage = async (req, res) => {
 
     // Update conversation's updatedAt timestamp
     await prisma.conversation.update({
-      where: { id: conversationId },
+      where: { id: conversation.id },
       data: { updatedAt: new Date() }
     });
 
