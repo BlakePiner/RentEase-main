@@ -16,7 +16,11 @@ import {
   Building2,
   CreditCard,
   UserCheck,
-  UserX
+  UserX,
+  Phone,
+  MessageSquare,
+  Facebook,
+  MessageCircle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +40,13 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { 
   getAllUsersRequest, 
@@ -63,6 +74,8 @@ const Verifications = () => {
     page: 1,
     limit: 10,
   });
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Fetch users for verification
   const fetchUsers = async () => {
@@ -176,12 +189,10 @@ const Verifications = () => {
   const pendingUsers = users.filter(user => !user.isVerified).length;
   const rejectedUsers = 0; // No rejected status in current schema
 
-  // Handle view profile - show user details in toast for now
+  // Handle view profile - open modal
   const handleViewProfile = (user: User) => {
-    toast.info(`Profile: ${user.name}`, {
-      description: `Email: ${user.email}\nRole: ${user.role}\nStatus: ${user.isDisabled ? 'Disabled' : 'Active'}\nVerified: ${user.isVerified ? 'Yes' : 'No'}\nProperties: ${user.propertiesCount}\nLeases: ${user.leasesCount}`,
-      duration: 8000,
-    });
+    setSelectedUser(user);
+    setIsProfileModalOpen(true);
   };
 
   return (
@@ -480,6 +491,197 @@ const Verifications = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* User Profile Modal */}
+      <Dialog open={isProfileModalOpen} onOpenChange={setIsProfileModalOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserIcon className="h-5 w-5" />
+              User Profile
+            </DialogTitle>
+            <DialogDescription>
+              View detailed information about this user.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedUser && (
+            <div className="space-y-6">
+              {/* Header Section */}
+              <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 shadow-lg">
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 blur-2xl opacity-70" />
+                  <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 blur-3xl opacity-70" />
+                </div>
+
+                <div className="relative p-6 flex flex-col sm:flex-row items-center gap-6">
+                  <div className="relative">
+                    <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
+                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-white text-xl font-semibold">
+                        {selectedUser.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+
+                  <div className="flex-1 text-center sm:text-left">
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                      {selectedUser.name}
+                    </h1>
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                      <div className="flex items-center gap-1 text-sm text-gray-600">
+                        <Mail size={14} />
+                        <span>{selectedUser.email}</span>
+                      </div>
+                      <div className="w-1 h-1 rounded-full bg-gray-400"></div>
+                      <div className="text-sm text-gray-600 capitalize">
+                        {selectedUser.role.toLowerCase()}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
+                      <Badge
+                        variant={selectedUser.isDisabled ? "destructive" : "default"}
+                        className="text-xs"
+                      >
+                        {selectedUser.isDisabled ? "Disabled" : "Active"}
+                      </Badge>
+                      <Badge
+                        variant={selectedUser.isVerified ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {selectedUser.isVerified ? "Verified" : "Unverified"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+                {/* Account Information Card */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-purple-50">
+                      <Shield className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <h2 className="font-semibold text-gray-900 text-lg">
+                      Account Information
+                    </h2>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Email
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 flex items-center justify-between">
+                        {selectedUser.email}
+                        {selectedUser.isVerified ? (
+                          <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                            Verified
+                          </span>
+                        ) : (
+                          <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-medium">
+                            Unverified
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Role
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 capitalize">
+                        {selectedUser.role.toLowerCase()}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Account Status
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 flex items-center gap-2">
+                        {selectedUser.isDisabled ? (
+                          <>
+                            <XCircle className="h-4 w-4 text-red-500" />
+                            <span className="text-red-600">Disabled</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <span className="text-green-600">Active</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activity Information Card */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-50">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <h2 className="font-semibold text-gray-900 text-lg">
+                      Activity Information
+                    </h2>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <Calendar size={14} />
+                        Joined
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {new Date(selectedUser.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <Clock size={14} />
+                        Last Login
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedUser.lastLogin ? new Date(selectedUser.lastLogin).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        }) : '—'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <Building2 size={14} />
+                        Properties
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedUser.propertiesCount} {selectedUser.propertiesCount === 1 ? 'property' : 'properties'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <CreditCard size={14} />
+                        Leases
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedUser.leasesCount} {selectedUser.leasesCount === 1 ? 'lease' : 'leases'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

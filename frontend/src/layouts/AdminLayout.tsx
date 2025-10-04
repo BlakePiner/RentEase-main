@@ -114,14 +114,9 @@ const sidebarConfig = [
         icon: BarChart3,
       },
       {
-        path: "/admin/logs",
+        path: "/admin/system-logs",
         name: "System Logs",
         icon: Activity,
-      },
-      {
-        path: "/admin/alerts",
-        name: "Alerts",
-        icon: AlertTriangle,
       },
     ],
   },
@@ -140,8 +135,7 @@ const breadcrumbConfig: Record<string, { name: string; parent?: string }> = {
   "/admin/payments": { name: "All Payments" },
   "/admin/transactions": { name: "Transactions" },
   "/admin/reports": { name: "Reports" },
-  "/admin/logs": { name: "System Logs" },
-  "/admin/alerts": { name: "Alerts" },
+  "/admin/system-logs": { name: "System Logs" },
   "/admin/settings": { name: "Settings" },
 };
 

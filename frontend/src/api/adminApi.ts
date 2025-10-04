@@ -247,3 +247,263 @@ export const updatePropertyRequestStatusRequest = async (listingId: string, data
   const response = await privateApi.patch(`/admin/property-requests/${listingId}`, data);
   return response;
 };
+
+// All Properties Types
+export interface Property {
+  id: string;
+  title: string;
+  type: string;
+  address: string;
+  city: string;
+  zipCode: string | null;
+  mainImageUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+    isDisabled: boolean;
+  };
+  unitsCount: number;
+  maintenanceRequestsCount: number;
+  units: Array<{
+    id: string;
+    label: string;
+    status: string;
+    targetPrice: number;
+  }>;
+}
+
+export interface PropertiesResponse {
+  properties: Property[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+// All Properties API functions
+export const getAllPropertiesRequest = async (params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  type?: string;
+  status?: string;
+  signal?: AbortSignal;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.append('page', params.page.toString());
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.search) queryParams.append('search', params.search);
+  if (params.type) queryParams.append('type', params.type);
+  if (params.status) queryParams.append('status', params.status);
+
+  const response = await privateApi.get<PropertiesResponse>(`/admin/properties?${queryParams.toString()}`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+// All Payments Types
+export interface Payment {
+  id: string;
+  amount: number;
+  paidAt: string | null;
+  method: string | null;
+  providerTxnId: string | null;
+  status: string;
+  timingStatus: string;
+  isPartial: boolean;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lease: {
+    id: string;
+    leaseNickname: string;
+    leaseType: string;
+    startDate: string;
+    endDate: string | null;
+    rentAmount: number;
+    interval: string;
+    status: string;
+    tenant: {
+      id: string;
+      name: string;
+      email: string;
+      isDisabled: boolean;
+    };
+    unit: {
+      id: string;
+      label: string;
+      property: {
+        id: string;
+        title: string;
+        address: string;
+        owner: {
+          id: string;
+          name: string;
+          email: string;
+        };
+      };
+    };
+  };
+}
+
+export interface PaymentsResponse {
+  payments: Payment[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export interface PaymentAnalytics {
+  summary: {
+    totalPayments: number;
+    totalAmount: number;
+    paidPayments: number;
+    pendingPayments: number;
+    onTimePayments: number;
+    latePayments: number;
+    advancePayments: number;
+    partialPayments: number;
+  };
+  paymentMethods: Array<{
+    method: string;
+    count: number;
+    totalAmount: number;
+  }>;
+  monthlyRevenue: Array<{
+    month: string;
+    amount: number;
+    count: number;
+  }>;
+}
+
+// All Payments API functions
+export const getAllPaymentsRequest = async (params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  method?: string;
+  timingStatus?: string;
+  signal?: AbortSignal;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.append('page', params.page.toString());
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.search) queryParams.append('search', params.search);
+  if (params.status) queryParams.append('status', params.status);
+  if (params.method) queryParams.append('method', params.method);
+  if (params.timingStatus) queryParams.append('timingStatus', params.timingStatus);
+
+  const response = await privateApi.get<PaymentsResponse>(`/admin/payments?${queryParams.toString()}`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+export const getPaymentAnalyticsRequest = async (params: {
+  period?: string;
+  signal?: AbortSignal;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.period) queryParams.append('period', params.period);
+
+  const response = await privateApi.get<PaymentAnalytics>(`/admin/payments/analytics?${queryParams.toString()}`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+// System Logs Types
+export interface SystemLog {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isDisabled: boolean;
+  activityStatus: 'online' | 'offline' | 'new_user';
+  activityType: 'online' | 'offline' | 'new_user';
+  lastActivity: string | null;
+  timeOnline: number;
+  timeOffline: number;
+  createdAt: string;
+  updatedAt: string;
+  propertiesCount: number;
+  leasesCount: number;
+}
+
+export interface SystemLogsResponse {
+  logs: SystemLog[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+export interface SystemLogsAnalytics {
+  summary: {
+    totalUsers: number;
+    onlineUsers: number;
+    offlineUsers: number;
+    newUsers: number;
+    recentLogins: number;
+    userRegistrations: number;
+  };
+  roleBreakdown: Array<{
+    role: string;
+    count: number;
+  }>;
+}
+
+// System Logs API functions
+export const getSystemLogsRequest = async (params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+  activityType?: string;
+  signal?: AbortSignal;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.append('page', params.page.toString());
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.search) queryParams.append('search', params.search);
+  if (params.role) queryParams.append('role', params.role);
+  if (params.activityType) queryParams.append('activityType', params.activityType);
+
+  const response = await privateApi.get<SystemLogsResponse>(`/admin/system-logs?${queryParams.toString()}`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+export const getSystemLogsAnalyticsRequest = async (params: {
+  period?: string;
+  signal?: AbortSignal;
+}) => {
+  const queryParams = new URLSearchParams();
+  
+  if (params.period) queryParams.append('period', params.period);
+
+  const response = await privateApi.get<SystemLogsAnalytics>(`/admin/system-logs/analytics?${queryParams.toString()}`, {
+    signal: params?.signal,
+  });
+  return response;
+};

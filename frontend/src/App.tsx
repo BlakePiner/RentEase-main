@@ -112,6 +112,18 @@ const AdminTenants = lazy(
 const Verifications = lazy(
   () => import("./pages/private/admin/Verifications")
 );
+const AllProperties = lazy(
+  () => import("./pages/private/admin/AllProperties")
+);
+const AllPayments = lazy(
+  () => import("./pages/private/admin/AllPayments")
+);
+const Transactions = lazy(
+  () => import("./pages/private/admin/Transactions")
+);
+const SystemLogs = lazy(
+  () => import("./pages/private/admin/SystemLogs")
+);
 
 // Shared private pages
 const AccountProfile = lazy(() => import("./pages/private/AccountProfile"));
@@ -588,6 +600,38 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loader />}>
             <Verifications />
+          </Suspense>
+        ),
+      },
+      {
+        path: "properties",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <AllProperties />
+          </Suspense>
+        ),
+      },
+      {
+        path: "payments",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <AllPayments />
+          </Suspense>
+        ),
+      },
+      {
+        path: "transactions",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <Transactions />
+          </Suspense>
+        ),
+      },
+      {
+        path: "system-logs",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <SystemLogs />
           </Suspense>
         ),
       },
