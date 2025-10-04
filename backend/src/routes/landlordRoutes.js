@@ -83,11 +83,17 @@ import {
   getTenantAnalyticsReport, 
   getOccupancyAnalyticsReport 
 } from "../controllers/landlord/reportsController.js";
+import { 
+  getRecentActivity, 
+  getUpcomingTasks 
+} from "../controllers/landlord/dashboardController.js";
 
 const router = Router();
 
 // ---------------------------- Dashboard
 router.get("/dashboard/stats", requireAuthentication(["LANDLORD"]), getDashboardStats);                        // get dashboard statistics
+router.get("/dashboard/recent-activity", requireAuthentication(["LANDLORD"]), getRecentActivity);              // get recent activity
+router.get("/dashboard/upcoming-tasks", requireAuthentication(["LANDLORD"]), getUpcomingTasks);                // get upcoming tasks
 
 // ---------------------------- Property
 // Lookup data

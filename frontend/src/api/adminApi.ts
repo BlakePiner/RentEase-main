@@ -77,6 +77,7 @@ export interface User {
   email: string;
   role: string;
   isDisabled: boolean;
+  isVerified: boolean;
   createdAt: string;
   lastLogin: string | null;
   propertiesCount: number;

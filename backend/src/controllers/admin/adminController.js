@@ -290,12 +290,13 @@ export const getAllUsers = async (req, res) => {
           email: true,
           role: true,
           isDisabled: true,
+          isVerified: true,
           createdAt: true,
           lastLogin: true,
           _count: {
             select: {
-              ownedProperties: true,
-              leases: true
+              Property: true,
+              Lease: true
             }
           }
         }
@@ -309,10 +310,11 @@ export const getAllUsers = async (req, res) => {
       email: user.email,
       role: user.role,
       isDisabled: user.isDisabled,
+      isVerified: user.isVerified,
       createdAt: user.createdAt,
       lastLogin: user.lastLogin,
-      propertiesCount: user._count.ownedProperties,
-      leasesCount: user._count.leases
+      propertiesCount: user._count.Property,
+      leasesCount: user._count.Lease
     }));
 
     res.json({

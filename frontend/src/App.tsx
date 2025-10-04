@@ -100,6 +100,18 @@ const AdminDashboard = lazy(
 const PropertyRequests = lazy(
   () => import("./pages/private/admin/PropertyRequests")
 );
+const AllUsers = lazy(
+  () => import("./pages/private/admin/AllUsers")
+);
+const AdminLandlords = lazy(
+  () => import("./pages/private/admin/AdminLandlords")
+);
+const AdminTenants = lazy(
+  () => import("./pages/private/admin/AdminTenants")
+);
+const Verifications = lazy(
+  () => import("./pages/private/admin/Verifications")
+);
 
 // Shared private pages
 const AccountProfile = lazy(() => import("./pages/private/AccountProfile"));
@@ -544,6 +556,38 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loader />}>
             <PropertyRequests />
+          </Suspense>
+        ),
+      },
+      {
+        path: "users",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <AllUsers />
+          </Suspense>
+        ),
+      },
+      {
+        path: "landlords",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <AdminLandlords />
+          </Suspense>
+        ),
+      },
+      {
+        path: "tenants",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <AdminTenants />
+          </Suspense>
+        ),
+      },
+      {
+        path: "verifications",
+        element: (
+          <Suspense fallback={<Loader />}>
+            <Verifications />
           </Suspense>
         ),
       },

@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getDashboardStatsRequest } from "@/api/landlordPropertyApi";
+import { getRecentActivityRequest, getUpcomingTasksRequest, type RecentActivity, type UpcomingTask } from "@/api/landlordDashboardApi";
 import { toast } from "sonner";
 
 // Types for dashboard data
@@ -54,6 +55,8 @@ interface DashboardData {
 
 const LandlordDashboard = () => {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<UpcomingTask[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -61,10 +64,15 @@ const LandlordDashboard = () => {
     const fetchDashboardData = async () => {
       setLoading(true);
       try {
-        const res = await getDashboardStatsRequest({
-          signal: controller.signal,
-        });
-        setData(res.data);
+        const [statsRes, activityRes, tasksRes] = await Promise.all([
+          getDashboardStatsRequest({ signal: controller.signal }),
+          getRecentActivityRequest({ limit: 5, signal: controller.signal }),
+          getUpcomingTasksRequest({ limit: 5, signal: controller.signal })
+        ]);
+        
+        setData(statsRes.data);
+        setRecentActivity(activityRes.data);
+        setUpcomingTasks(tasksRes.data);
       } catch (err: any) {
         if (err.name !== "AbortError") {
           console.error("Error fetching dashboard data:", err);
@@ -171,6 +179,82 @@ const LandlordDashboard = () => {
   const calculatePercentageChange = (current: number, previous: number) => {
     if (previous === 0) return 0;
     return ((current - previous) / previous) * 100;
+  };
+
+  // Helper functions for activity and tasks
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'APPLICATION':
+        return <Users className="h-4 w-4 text-blue-600" />;
+      case 'MAINTENANCE':
+        return <Wrench className="h-4 w-4 text-orange-600" />;
+      case 'PAYMENT':
+        return <DollarSign className="h-4 w-4 text-green-600" />;
+      case 'MESSAGE':
+        return <Clock className="h-4 w-4 text-purple-600" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  const getTaskIcon = (type: string) => {
+    switch (type) {
+      case 'APPLICATION_REVIEW':
+        return <Users className="h-4 w-4 text-blue-600" />;
+      case 'LEASE_RENEWAL':
+        return <Calendar className="h-4 w-4 text-green-600" />;
+      case 'INSPECTION':
+        return <Building2 className="h-4 w-4 text-orange-600" />;
+      case 'MAINTENANCE_FOLLOWUP':
+        return <Wrench className="h-4 w-4 text-red-600" />;
+      default:
+        return <Calendar className="h-4 w-4 text-gray-600" />;
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'URGENT':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'HIGH':
+        return 'bg-orange-100 text-orange-800 border-orange-200';
+      case 'MEDIUM':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'LOW':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const formatTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffInMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m ago`;
+    } else if (diffInMinutes < 1440) {
+      return `${Math.floor(diffInMinutes / 60)}h ago`;
+    } else {
+      return `${Math.floor(diffInMinutes / 1440)}d ago`;
+    }
+  };
+
+  const formatDueDate = (dueDate: string) => {
+    const now = new Date();
+    const due = new Date(dueDate);
+    const diffInDays = Math.floor((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays < 0) {
+      return `${Math.abs(diffInDays)} days overdue`;
+    } else if (diffInDays === 0) {
+      return 'Due today';
+    } else if (diffInDays === 1) {
+      return 'Due tomorrow';
+    } else {
+      return `Due in ${diffInDays} days`;
+    }
   };
 
   const incomeChange = calculatePercentageChange(
@@ -309,16 +393,58 @@ const LandlordDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8">
-              <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Recent Activity</h3>
-              <p className="text-gray-600 mb-4">
-                Activity from payments, maintenance requests, and messages will appear here.
-              </p>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/landlord/activity">View All Activity</Link>
-              </Button>
-            </div>
+            {recentActivity.length > 0 ? (
+              <div className="space-y-4">
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex-shrink-0 mt-1">
+                      {getActivityIcon(activity.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-gray-900 truncate">
+                          {activity.title}
+                        </h4>
+                        <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                          {formatTimeAgo(activity.timestamp)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                        {activity.description}
+                      </p>
+                      {activity.property && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-gray-500">
+                            {activity.property.title} - {activity.unit?.label}
+                          </span>
+                          {activity.amount && (
+                            <span className="text-xs font-medium text-green-600">
+                              {formatCurrency(activity.amount)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/landlord/tenants">View All Activity</Link>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Recent Activity</h3>
+                <p className="text-gray-600 mb-4">
+                  Activity from payments, maintenance requests, and messages will appear here.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/landlord/tenants">View All Activity</Link>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -331,16 +457,61 @@ const LandlordDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8">
-              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Upcoming Tasks</h3>
-              <p className="text-gray-600 mb-4">
-                Lease renewals, inspections, and maintenance tasks will appear here.
-              </p>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/landlord/tasks">View All Tasks</Link>
-              </Button>
-            </div>
+            {upcomingTasks.length > 0 ? (
+              <div className="space-y-4">
+                {upcomingTasks.map((task) => (
+                  <div key={task.id} className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="flex-shrink-0 mt-1">
+                      {getTaskIcon(task.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="text-sm font-medium text-gray-900 truncate">
+                          {task.title}
+                        </h4>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${getPriorityColor(task.priority)}`}
+                        >
+                          {task.priority}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">
+                        {task.description}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs ${
+                          task.status === 'OVERDUE' ? 'text-red-600 font-medium' : 'text-gray-500'
+                        }`}>
+                          {formatDueDate(task.dueDate)}
+                        </span>
+                        {task.property && (
+                          <span className="text-xs text-gray-500 truncate ml-2">
+                            {task.property.title}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/landlord/tenants">View All Tasks</Link>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Upcoming Tasks</h3>
+                <p className="text-gray-600 mb-4">
+                  Lease renewals, inspections, and maintenance tasks will appear here.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <Link to="/landlord/tenants">View All Tasks</Link>
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
