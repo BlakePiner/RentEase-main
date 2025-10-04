@@ -31,6 +31,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getUnitDetailsRequest, deleteUnitRequest, requestListingRequest } from "@/api/landlordPropertyApi";
 import { toast } from "sonner";
+import ListingPaymentModal from "@/components/ListingPaymentModal";
+
+// Force recompilation to clear cache issues
 
 // Types based on your backend response
 type Amenity = {
@@ -117,6 +120,7 @@ const UnitDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Fetch unit details
   useEffect(() => {
@@ -224,12 +228,23 @@ const UnitDetails = () => {
 
   // Handle messages/inquiry
   const handleMessages = () => {
-    // Navigate to messages page for this unit
-    navigate(`/landlord/units/${unitId}/messages`);
+    // Navigate to messages page
+    navigate('/landlord/messages');
   };
 
-  // Toggle listing status
-  const toggleListing = async () => {
+  // Handle listing request with payment
+  const toggleListing = () => {
+    if (!unit || !propertyId || !unitId) {
+      toast.error("Missing required information");
+      return;
+    }
+    
+    // Show payment modal first
+    setShowPaymentModal(true);
+  };
+
+  // Handle successful payment and submit listing request
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
     if (!unit || !propertyId || !unitId) {
       toast.error("Missing required information");
       return;
@@ -240,7 +255,8 @@ const UnitDetails = () => {
       
       // Create a listing request that goes to admin for approval
       await requestListingRequest(propertyId, unitId, {
-        notes: "Listing request submitted from unit details page"
+        notes: `Listing request submitted from unit details page. Payment ID: ${paymentIntentId}`,
+        paymentIntentId: paymentIntentId
       });
 
       toast.success("Listing request submitted successfully! It will be reviewed by admin.");
@@ -854,6 +870,24 @@ const UnitDetails = () => {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Payment Modal */}
+      {unit && (
+        <ListingPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onPaymentSuccess={handlePaymentSuccess}
+          unitDetails={{
+            id: unit.id,
+            label: unit.label,
+            targetPrice: unit.targetPrice,
+            property: {
+              title: unit.property.title,
+              address: unit.property.address
+            }
+          }}
+        />
       )}
     </div>
   );

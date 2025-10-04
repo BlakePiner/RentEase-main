@@ -23,6 +23,9 @@ export interface AdminDashboardStats {
   financial: {
     totalRevenue: number;
     monthlyRevenue: number;
+    commissionRevenue: number;
+    monthlyCommissionRevenue: number;
+    activeListingsCount: number;
     paidPayments: number;
     pendingPayments: number;
     overduePayments: number;
@@ -106,6 +109,8 @@ export interface SystemAnalytics {
     propertyCreations: number;
     totalRevenue: number;
     totalTransactions: number;
+    commissionRevenue: number;
+    activeListingsCount: number;
   };
   topProperties: Array<{
     id: string;
@@ -369,6 +374,8 @@ export interface PaymentAnalytics {
   summary: {
     totalPayments: number;
     totalAmount: number;
+    commissionRevenue: number;
+    activeListingsCount: number;
     paidPayments: number;
     pendingPayments: number;
     onTimePayments: number;
@@ -503,6 +510,154 @@ export const getSystemLogsAnalyticsRequest = async (params: {
   if (params.period) queryParams.append('period', params.period);
 
   const response = await privateApi.get<SystemLogsAnalytics>(`/admin/system-logs/analytics?${queryParams.toString()}`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+// Tenant Leases Types
+export interface TenantLeaseInfo {
+  id: string;
+  leaseNickname: string;
+  leaseType: string;
+  startDate: string;
+  endDate: string | null;
+  rentAmount: number;
+  interval: "DAILY" | "WEEKLY" | "MONTHLY";
+  status: "DRAFT" | "ACTIVE" | "EXPIRED" | "TERMINATED";
+  hasFormalDocument: boolean;
+  leaseDocumentUrl: string | null;
+  landlordName: string | null;
+  tenantName: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  unit: {
+    id: string;
+    label: string;
+    status: string;
+    targetPrice: number;
+    description: string;
+    maxOccupancy: number;
+    floorNumber: number | null;
+    amenities: Array<{
+      id: string;
+      name: string;
+      category: string;
+    }>;
+    property: {
+      id: string;
+      title: string;
+      address: string;
+      type: string;
+      owner: {
+        id: string;
+        firstName: string | null;
+        lastName: string | null;
+        email: string;
+        phoneNumber: string | null;
+        avatarUrl: string | null;
+      };
+    };
+  };
+  payments: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    paidAt: string | null;
+    timingStatus: string;
+    dueDate: string;
+    createdAt: string;
+  }>;
+}
+
+export interface TenantLeasesResponse {
+  tenant: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    phoneNumber: string | null;
+    avatarUrl: string | null;
+    isDisabled: boolean;
+    createdAt: string;
+    lastLogin: string | null;
+  };
+  leases: TenantLeaseInfo[];
+  leaseStats: {
+    total: number;
+    active: number;
+    draft: number;
+    expired: number;
+    terminated: number;
+  };
+  paymentStats: {
+    total: number;
+    paid: number;
+    pending: number;
+    onTime: number;
+    late: number;
+    advance: number;
+    totalPaidAmount: number;
+    totalPendingAmount: number;
+  };
+}
+
+// Tenant Leases API functions
+export const getTenantLeasesRequest = async (tenantId: string, params?: { signal?: AbortSignal }) => {
+  const response = await privateApi.get<TenantLeasesResponse>(`/admin/tenants/${tenantId}/leases`, {
+    signal: params?.signal,
+  });
+  return response;
+};
+
+// Commission Revenue Types
+export interface CommissionDetail {
+  listingId: string;
+  unitId: string;
+  unitLabel: string;
+  monthlyRent: number;
+  commission: number;
+  commissionPercentage: number;
+  property: {
+    id: string;
+    title: string;
+    address: string;
+  };
+  landlord: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  listingCreatedAt: string;
+  listingExpiresAt: string;
+}
+
+export interface CommissionRevenueResponse {
+  period: string;
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  summary: {
+    totalActiveListings: number;
+    totalMonthlyRent: number;
+    totalCommission: number;
+    averageCommission: number;
+    commissionRate: number;
+  };
+  commissionDetails: CommissionDetail[];
+}
+
+// Commission Revenue API functions
+export const getCommissionRevenueDetailsRequest = async (params: {
+  period?: string;
+  signal?: AbortSignal;
+}) => {
+  const queryParams = new URLSearchParams();
+  if (params.period) queryParams.append('period', params.period);
+
+  const response = await privateApi.get<CommissionRevenueResponse>(`/admin/commission-revenue?${queryParams.toString()}`, {
     signal: params?.signal,
   });
   return response;

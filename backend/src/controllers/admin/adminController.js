@@ -76,6 +76,50 @@ export const getAdminDashboardStats = async (req, res) => {
       _sum: { amount: true }
     });
 
+    // Commission Revenue from Active Unit Listings (3% of monthly rent)
+    const activeListings = await prisma.listing.findMany({
+      where: {
+        status: "ACTIVE",
+        expiresAt: { gt: now } // Only active listings that haven't expired
+      },
+      include: {
+        unit: {
+          select: {
+            targetPrice: true
+          }
+        }
+      }
+    });
+
+    // Calculate commission revenue (3% of monthly rent for each active listing)
+    const commissionRevenue = activeListings.reduce((total, listing) => {
+      const monthlyRent = listing.unit.targetPrice;
+      const commission = monthlyRent * 0.03; // 3% commission
+      return total + commission;
+    }, 0);
+
+    // Calculate monthly commission revenue (for active listings this month)
+    const activeListingsThisMonth = await prisma.listing.findMany({
+      where: {
+        status: "ACTIVE",
+        createdAt: { gte: startOfMonth },
+        expiresAt: { gt: now }
+      },
+      include: {
+        unit: {
+          select: {
+            targetPrice: true
+          }
+        }
+      }
+    });
+
+    const monthlyCommissionRevenue = activeListingsThisMonth.reduce((total, listing) => {
+      const monthlyRent = listing.unit.targetPrice;
+      const commission = monthlyRent * 0.03; // 3% commission
+      return total + commission;
+    }, 0);
+
     // Maintenance Statistics
     const totalMaintenanceRequests = await prisma.maintenanceRequest.count();
     const pendingMaintenance = await prisma.maintenanceRequest.count({ 
@@ -190,8 +234,11 @@ export const getAdminDashboardStats = async (req, res) => {
         pendingMaintenance
       },
       financial: {
-        totalRevenue: totalPaymentAmount._sum.amount || 0,
-        monthlyRevenue: monthlyRevenue._sum.amount || 0,
+        totalRevenue: (totalPaymentAmount._sum.amount || 0) + commissionRevenue,
+        monthlyRevenue: (monthlyRevenue._sum.amount || 0) + monthlyCommissionRevenue,
+        commissionRevenue: commissionRevenue,
+        monthlyCommissionRevenue: monthlyCommissionRevenue,
+        activeListingsCount: activeListings.length,
         paidPayments,
         pendingPayments,
         overduePayments
@@ -457,6 +504,28 @@ export const getSystemAnalytics = async (req, res) => {
       _count: { id: true }
     });
 
+    // Commission revenue from active listings in the period
+    const activeListingsInPeriod = await prisma.listing.findMany({
+      where: {
+        status: "ACTIVE",
+        createdAt: { gte: startDate },
+        expiresAt: { gt: now }
+      },
+      include: {
+        unit: {
+          select: {
+            targetPrice: true
+          }
+        }
+      }
+    });
+
+    const periodCommissionRevenue = activeListingsInPeriod.reduce((total, listing) => {
+      const monthlyRent = listing.unit.targetPrice;
+      const commission = monthlyRent * 0.03; // 3% commission
+      return total + commission;
+    }, 0);
+
     // Top performing properties
     const topProperties = await prisma.property.findMany({
       take: 10,
@@ -492,8 +561,10 @@ export const getSystemAnalytics = async (req, res) => {
       trends: {
         userRegistrations: userRegistrations.length,
         propertyCreations: propertyCreations.length,
-        totalRevenue: paymentTrends.reduce((sum, payment) => sum + (payment._sum.amount || 0), 0),
-        totalTransactions: paymentTrends.reduce((sum, payment) => sum + payment._count.id, 0)
+        totalRevenue: paymentTrends.reduce((sum, payment) => sum + (payment._sum.amount || 0), 0) + periodCommissionRevenue,
+        totalTransactions: paymentTrends.reduce((sum, payment) => sum + payment._count.id, 0),
+        commissionRevenue: periodCommissionRevenue,
+        activeListingsCount: activeListingsInPeriod.length
       },
       topProperties: topProperties.map(property => ({
         id: property.id,
@@ -1121,6 +1192,28 @@ export const getPaymentAnalytics = async (req, res) => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
+    // Get commission revenue from active listings
+    const activeListingsForAnalytics = await prisma.listing.findMany({
+      where: {
+        status: "ACTIVE",
+        createdAt: { gte: startDate },
+        expiresAt: { gt: now }
+      },
+      include: {
+        unit: {
+          select: {
+            targetPrice: true
+          }
+        }
+      }
+    });
+
+    const analyticsCommissionRevenue = activeListingsForAnalytics.reduce((total, listing) => {
+      const monthlyRent = listing.unit.targetPrice;
+      const commission = monthlyRent * 0.03; // 3% commission
+      return total + commission;
+    }, 0);
+
     // Get payment statistics
     const [
       totalPayments,
@@ -1222,7 +1315,9 @@ export const getPaymentAnalytics = async (req, res) => {
     res.json({
       summary: {
         totalPayments,
-        totalAmount: totalAmount._sum.amount || 0,
+        totalAmount: (totalAmount._sum.amount || 0) + analyticsCommissionRevenue,
+        commissionRevenue: analyticsCommissionRevenue,
+        activeListingsCount: activeListingsForAnalytics.length,
         paidPayments,
         pendingPayments,
         onTimePayments,
@@ -1531,5 +1626,222 @@ export const getSystemLogsAnalytics = async (req, res) => {
   } catch (error) {
     console.error("Error fetching system logs analytics:", error);
     res.status(500).json({ message: "Failed to fetch system logs analytics" });
+  }
+};
+
+// ---------------------------------------------- GET TENANT LEASES FOR ADMIN ----------------------------------------------
+export const getTenantLeases = async (req, res) => {
+  try {
+    const adminId = req.user?.id;
+    const { tenantId } = req.params;
+
+    if (!adminId) {
+      return res.status(401).json({ message: "Unauthorized: admin not found" });
+    }
+
+    if (!tenantId) {
+      return res.status(400).json({ message: "Tenant ID is required" });
+    }
+
+    // Verify the tenant exists
+    const tenant = await prisma.user.findFirst({
+      where: {
+        id: tenantId,
+        role: "TENANT"
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phoneNumber: true,
+        avatarUrl: true,
+        isDisabled: true,
+        createdAt: true,
+        lastLogin: true
+      }
+    });
+
+    if (!tenant) {
+      return res.status(404).json({ message: "Tenant not found" });
+    }
+
+    // Get all leases for this tenant
+    const leases = await prisma.lease.findMany({
+      where: {
+        tenantId: tenantId
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              include: {
+                owner: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                    phoneNumber: true,
+                    avatarUrl: true
+                  }
+                }
+              }
+            },
+            amenities: true
+          }
+        },
+        payments: {
+          orderBy: { createdAt: "desc" },
+          take: 10 // Get recent payments
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    // Calculate lease statistics
+    const leaseStats = {
+      total: leases.length,
+      active: leases.filter(lease => lease.status === "ACTIVE").length,
+      draft: leases.filter(lease => lease.status === "DRAFT").length,
+      expired: leases.filter(lease => lease.status === "EXPIRED").length,
+      terminated: leases.filter(lease => lease.status === "TERMINATED").length
+    };
+
+    // Calculate payment statistics
+    const allPayments = leases.flatMap(lease => lease.payments);
+    const paymentStats = {
+      total: allPayments.length,
+      paid: allPayments.filter(payment => payment.status === "PAID").length,
+      pending: allPayments.filter(payment => payment.status === "PENDING").length,
+      onTime: allPayments.filter(payment => payment.timingStatus === "ONTIME").length,
+      late: allPayments.filter(payment => payment.timingStatus === "LATE").length,
+      advance: allPayments.filter(payment => payment.timingStatus === "ADVANCE").length,
+      totalPaidAmount: allPayments
+        .filter(payment => payment.status === "PAID")
+        .reduce((sum, payment) => sum + payment.amount, 0),
+      totalPendingAmount: allPayments
+        .filter(payment => payment.status === "PENDING")
+        .reduce((sum, payment) => sum + payment.amount, 0)
+    };
+
+    res.json({
+      tenant,
+      leases,
+      leaseStats,
+      paymentStats
+    });
+  } catch (error) {
+    console.error("Error fetching tenant leases:", error);
+    res.status(500).json({ message: "Failed to fetch tenant leases" });
+  }
+};
+
+// ---------------------------------------------- GET COMMISSION REVENUE DETAILS ----------------------------------------------
+export const getCommissionRevenueDetails = async (req, res) => {
+  try {
+    const adminId = req.user?.id;
+    
+    if (!adminId) {
+      return res.status(401).json({ message: "Unauthorized: admin not found" });
+    }
+
+    const { period = '30d' } = req.query;
+    
+    // Calculate date range based on period
+    const now = new Date();
+    let startDate;
+    
+    switch (period) {
+      case '7d':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30d':
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case '90d':
+        startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        break;
+      case '1y':
+        startDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    // Get active listings with detailed information
+    const activeListings = await prisma.listing.findMany({
+      where: {
+        status: "ACTIVE",
+        createdAt: { gte: startDate },
+        expiresAt: { gt: now }
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              include: {
+                owner: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    // Calculate commission details for each listing
+    const commissionDetails = activeListings.map(listing => {
+      const monthlyRent = listing.unit.targetPrice;
+      const commission = monthlyRent * 0.03; // 3% commission
+      
+      return {
+        listingId: listing.id,
+        unitId: listing.unit.id,
+        unitLabel: listing.unit.label,
+        monthlyRent: monthlyRent,
+        commission: commission,
+        commissionPercentage: 3,
+        property: {
+          id: listing.unit.property.id,
+          title: listing.unit.property.title,
+          address: listing.unit.property.address
+        },
+        landlord: {
+          id: listing.unit.property.owner.id,
+          name: `${listing.unit.property.owner.firstName} ${listing.unit.property.owner.lastName}`,
+          email: listing.unit.property.owner.email
+        },
+        listingCreatedAt: listing.createdAt,
+        listingExpiresAt: listing.expiresAt
+      };
+    });
+
+    // Calculate totals
+    const totalCommission = commissionDetails.reduce((sum, detail) => sum + detail.commission, 0);
+    const totalMonthlyRent = commissionDetails.reduce((sum, detail) => sum + detail.monthlyRent, 0);
+
+    res.json({
+      period,
+      dateRange: { start: startDate, end: now },
+      summary: {
+        totalActiveListings: activeListings.length,
+        totalMonthlyRent: totalMonthlyRent,
+        totalCommission: totalCommission,
+        averageCommission: activeListings.length > 0 ? totalCommission / activeListings.length : 0,
+        commissionRate: 3
+      },
+      commissionDetails
+    });
+  } catch (error) {
+    console.error("Error fetching commission revenue details:", error);
+    res.status(500).json({ message: "Failed to fetch commission revenue details" });
   }
 };

@@ -22,7 +22,7 @@ import {
   Send,
   Loader2
 } from "lucide-react";
-import { getPropertyDetailsRequest, type PropertyDetails, type PropertyUnit } from "@/api/tenantApi";
+import { getPropertyDetailsRequest, type PropertyDetails, type PropertyUnit, getTenantLeaseDetails, type TenantLeaseDetails } from "@/api/tenantApi";
 import { createOrGetTenantConversationRequest, sendTenantMessageRequest } from "@/api/tenantMessageApi";
 import TenantApplicationForm from "@/components/TenantApplicationForm";
 import UnitDetailsModal from "@/components/UnitDetailsModal";
@@ -59,31 +59,57 @@ const PropertyDetailsPage = () => {
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [contactingOwner, setContactingOwner] = useState(false);
+  const [hasActiveLease, setHasActiveLease] = useState<boolean>(false);
+  const [leaseDetails, setLeaseDetails] = useState<TenantLeaseDetails | null>(null);
   
   // Unit details modal state
   const [showUnitDetails, setShowUnitDetails] = useState(false);
   const [selectedUnitForDetails, setSelectedUnitForDetails] = useState<PropertyUnit | null>(null);
 
   useEffect(() => {
-    const fetchProperty = async () => {
+    const fetchData = async () => {
       if (!propertyId) return;
       
       setLoading(true);
       setError(null);
       
       try {
-        const response = await getPropertyDetailsRequest(propertyId);
-        setProperty(response.data);
+        // Fetch property details and lease status in parallel
+        const [propertyResponse, leaseResponse] = await Promise.allSettled([
+          getPropertyDetailsRequest(propertyId),
+          getTenantLeaseDetails()
+        ]);
+
+        // Handle property details
+        if (propertyResponse.status === 'fulfilled') {
+          setProperty(propertyResponse.value.data);
+        } else {
+          console.error("Error fetching property details:", propertyResponse.reason);
+          setError("Failed to load property details");
+          toast.error("Failed to load property details");
+        }
+
+        // Handle lease details
+        if (leaseResponse.status === 'fulfilled') {
+          setLeaseDetails(leaseResponse.value.data);
+          setHasActiveLease(true);
+        } else {
+          // 404 means no active lease, which is expected for tenants without leases
+          if (leaseResponse.reason?.response?.status !== 404) {
+            console.error("Error fetching lease details:", leaseResponse.reason);
+          }
+          setHasActiveLease(false);
+        }
       } catch (err: any) {
-        console.error("Error fetching property details:", err);
-        setError("Failed to load property details");
-        toast.error("Failed to load property details");
+        console.error("Error in fetchData:", err);
+        setError("Failed to load data");
+        toast.error("Failed to load data");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProperty();
+    fetchData();
   }, [propertyId]);
 
   const formatCurrency = (amount: number) => {
@@ -104,6 +130,12 @@ const PropertyDetailsPage = () => {
   };
 
   const handleApplyForUnit = (unit: PropertyUnit) => {
+    if (hasActiveLease) {
+      toast.error("You already have an active lease. Please contact your current landlord to terminate your existing lease before applying for a new property.", {
+        duration: 5000,
+      });
+      return;
+    }
     setSelectedUnit(unit);
     setShowApplicationModal(true);
   };
@@ -405,14 +437,26 @@ const PropertyDetailsPage = () => {
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
                         </Button>
-                        <Button 
-                          onClick={() => handleApplyForUnit(unit)}
-                          className="bg-blue-600 hover:bg-blue-700"
-                          size="sm"
-                        >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Apply
-                        </Button>
+                        {hasActiveLease ? (
+                          <Button 
+                            disabled
+                            className="bg-gray-400 cursor-not-allowed"
+                            size="sm"
+                            title="You already have an active lease. Contact your landlord to terminate your current lease before applying for a new property."
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Already Leased
+                          </Button>
+                        ) : (
+                          <Button 
+                            onClick={() => handleApplyForUnit(unit)}
+                            className="bg-blue-600 hover:bg-blue-700"
+                            size="sm"
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Apply
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </Card>
@@ -580,6 +624,7 @@ const PropertyDetailsPage = () => {
           isOpen={showUnitDetails}
           onClose={handleCloseUnitDetails}
           onApply={handleApplyForUnit}
+          hasActiveLease={hasActiveLease}
         />
       )}
     </div>

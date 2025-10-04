@@ -12,7 +12,9 @@ import {
   getAllPayments,
   getPaymentAnalytics,
   getSystemLogs,
-  getSystemLogsAnalytics
+  getSystemLogsAnalytics,
+  getTenantLeases,
+  getCommissionRevenueDetails
 } from "../controllers/admin/adminController.js";
 
 const router = Router();
@@ -24,6 +26,7 @@ router.get("/analytics", requireAuthentication(["ADMIN"]), getSystemAnalytics); 
 // ---------------------------- User Management
 router.get("/users", requireAuthentication(["ADMIN"]), getAllUsers);                          // get all users with pagination and filters
 router.patch("/users/:userId/toggle-status", requireAuthentication(["ADMIN"]), toggleUserStatus); // enable/disable user
+router.get("/tenants/:tenantId/leases", requireAuthentication(["ADMIN"]), getTenantLeases);  // get tenant leases for admin view
 
 // ---------------------------- Property Requests
 router.get("/property-requests", requireAuthentication(["ADMIN"]), getPropertyRequests);      // get all property listing requests
@@ -35,6 +38,7 @@ router.get("/properties", requireAuthentication(["ADMIN"]), getAllProperties);  
 // ---------------------------- Financial
 router.get("/payments", requireAuthentication(["ADMIN"]), getAllPayments);                   // get all payments with filters
 router.get("/payments/analytics", requireAuthentication(["ADMIN"]), getPaymentAnalytics);   // get payment analytics and statistics
+router.get("/commission-revenue", requireAuthentication(["ADMIN"]), getCommissionRevenueDetails); // get commission revenue details
 
 // ---------------------------- System
 router.get("/system-logs", requireAuthentication(["ADMIN"]), getSystemLogs);                // get system logs (user activity)

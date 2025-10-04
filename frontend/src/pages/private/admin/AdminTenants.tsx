@@ -53,6 +53,7 @@ import {
   type User, 
   type UsersResponse 
 } from "@/api/adminApi";
+import AdminViewLeaseModal from "@/components/AdminViewLeaseModal";
 
 const AdminTenants = () => {
   const [tenants, setTenants] = useState<User[]>([]);
@@ -74,6 +75,8 @@ const AdminTenants = () => {
   });
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [selectedTenantForLease, setSelectedTenantForLease] = useState<User | null>(null);
+  const [isViewLeaseModalOpen, setIsViewLeaseModalOpen] = useState(false);
 
   // Fetch tenants
   const fetchTenants = async () => {
@@ -120,6 +123,12 @@ const AdminTenants = () => {
   const handleViewProfile = (user: User) => {
     setSelectedUser(user);
     setIsProfileModalOpen(true);
+  };
+
+  // Handle view lease
+  const handleViewLease = (tenant: User) => {
+    setSelectedTenantForLease(tenant);
+    setIsViewLeaseModalOpen(true);
   };
 
   // Handle toggle tenant status
@@ -356,7 +365,7 @@ const AdminTenants = () => {
                           <Mail className="h-4 w-4 mr-2" />
                           Send Email
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleViewLease(tenant)}>
                           <Home className="h-4 w-4 mr-2" />
                           View Lease
                         </DropdownMenuItem>
@@ -628,6 +637,19 @@ const AdminTenants = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* View Lease Modal */}
+      {selectedTenantForLease && (
+        <AdminViewLeaseModal
+          isOpen={isViewLeaseModalOpen}
+          onClose={() => {
+            setIsViewLeaseModalOpen(false);
+            setSelectedTenantForLease(null);
+          }}
+          tenantId={selectedTenantForLease.id}
+          tenantName={`${selectedTenantForLease.firstName} ${selectedTenantForLease.lastName}`}
+        />
+      )}
     </div>
   );
 };

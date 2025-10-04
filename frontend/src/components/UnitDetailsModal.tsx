@@ -35,6 +35,7 @@ interface UnitDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onApply: (unit: any) => void;
+  hasActiveLease?: boolean;
 }
 
 const StarRating = ({ rating, reviewCount }: { rating: number; reviewCount: number }) => {
@@ -73,7 +74,7 @@ const AmenityIcon = ({ amenityName }: { amenityName: string }) => {
   return <IconComponent className="h-4 w-4" />;
 };
 
-const UnitDetailsModal = ({ unit, property, isOpen, onClose, onApply }: UnitDetailsModalProps) => {
+const UnitDetailsModal = ({ unit, property, isOpen, onClose, onApply, hasActiveLease = false }: UnitDetailsModalProps) => {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Create array of images (main image + any other images)
@@ -335,14 +336,26 @@ const UnitDetailsModal = ({ unit, property, isOpen, onClose, onApply }: UnitDeta
 
               {/* Action Buttons */}
               <div className="space-y-3">
-                <Button
-                  onClick={() => onApply(unit)}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  size="lg"
-                >
-                  <FileText className="h-5 w-5 mr-2" />
-                  Apply for This Unit
-                </Button>
+                {hasActiveLease ? (
+                  <Button
+                    disabled
+                    className="w-full bg-gray-400 cursor-not-allowed"
+                    size="lg"
+                    title="You already have an active lease. Contact your landlord to terminate your current lease before applying for a new property."
+                  >
+                    <FileText className="h-5 w-5 mr-2" />
+                    Already Leased
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => onApply(unit)}
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    size="lg"
+                  >
+                    <FileText className="h-5 w-5 mr-2" />
+                    Apply for This Unit
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={onClose}

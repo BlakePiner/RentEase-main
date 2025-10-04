@@ -1257,6 +1257,24 @@ export const submitTenantApplication = async (req, res) => {
       return res.status(400).json({ message: "Unit is not actively listed" });
     }
 
+    // Check if tenant already has an active lease
+    const existingActiveLease = await prisma.lease.findFirst({
+      where: {
+        tenantId: tenantId,
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" } // Include DRAFT leases as they are assigned to the tenant
+        ]
+      }
+    });
+
+    if (existingActiveLease) {
+      return res.status(400).json({ 
+        message: "You already have an active lease. Please contact your current landlord to terminate your existing lease before applying for a new property.",
+        code: "ACTIVE_LEASE_EXISTS"
+      });
+    }
+
     // Check if tenant already has a pending application for this unit
     const existingApplication = await prisma.tenantScreening.findFirst({
       where: {
