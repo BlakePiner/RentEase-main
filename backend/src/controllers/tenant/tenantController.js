@@ -805,21 +805,24 @@ export const browseApprovedProperties = async (req, res) => {
       }
     };
 
-    // Add search filters
+    // Add search and location filters
+    const orConditions = [];
+    
     if (search) {
-      where.OR = [
-        { 
-          title: { contains: search, mode: 'insensitive' }
-        }
-      ];
+      orConditions.push({ 
+        title: { contains: search, mode: 'insensitive' }
+      });
     }
 
-    // Location filter
     if (location && location !== 'ALL') {
-      where.OR = [
+      orConditions.push(
         { city: { name: { contains: location, mode: 'insensitive' } } },
         { municipality: { name: { contains: location, mode: 'insensitive' } } }
-      ];
+      );
+    }
+
+    if (orConditions.length > 0) {
+      where.OR = orConditions;
     }
 
     // Property type filter

@@ -3,6 +3,130 @@ import fetch from 'node-fetch';
 // Get OpenRouter API key from environment
 const OPENROUTER_API_KEY = process.env.CHATBOT_API || process.env.OPENROUTER_API_KEY;
 
+// Property filtering patterns and responses
+const PROPERTY_FILTERS = {
+  locations: ['cebu city', 'mandaue', 'lapu-lapu', 'talamban', 'lahug', 'banilad', 'ayala', 'it park'],
+  amenities: ['wifi', 'parking', 'air conditioning', 'aircon', 'ac', 'furnished', 'pet friendly', 'security', 'gym', 'pool', 'swimming pool', 'refrigerator', 'stove', 'microwave'],
+  propertyTypes: ['apartment', 'condominium', 'condo', 'boarding house', 'single house', 'house'],
+  priceRanges: {
+    'budget': { min: 5000, max: 10000 },
+    'affordable': { min: 8000, max: 15000 },
+    'mid-range': { min: 12000, max: 25000 },
+    'premium': { min: 20000, max: 50000 }
+  }
+};
+
+// Function to detect property filtering intent and extract parameters
+function detectPropertyFilters(message) {
+  const lowerMessage = message.toLowerCase();
+  const filters = {
+    search: null,
+    location: null,
+    amenities: [],
+    propertyType: null,
+    minPrice: null,
+    maxPrice: null,
+    hasPropertyIntent: false
+  };
+
+  // Check if message contains property-related keywords
+  const propertyKeywords = ['property', 'properties', 'rental', 'apartment', 'condo', 'condominium', 'house', 'room', 'bedroom', 'br', 'studio', 'rent', 'lease', 'show', 'find', 'search'];
+  filters.hasPropertyIntent = propertyKeywords.some(keyword => lowerMessage.includes(keyword));
+
+  if (!filters.hasPropertyIntent) {
+    return filters;
+  }
+
+  // Extract location
+  for (const location of PROPERTY_FILTERS.locations) {
+    if (lowerMessage.includes(location)) {
+      filters.location = location.charAt(0).toUpperCase() + location.slice(1);
+      break;
+    }
+  }
+
+  // Extract amenities
+  for (const amenity of PROPERTY_FILTERS.amenities) {
+    if (lowerMessage.includes(amenity)) {
+      // Map common variations to standard names (matching database values)
+      let standardAmenity = amenity;
+      if (amenity === 'ac' || amenity === 'aircon' || amenity === 'air conditioning') standardAmenity = 'Aircon';
+      else if (amenity === 'wifi') standardAmenity = 'Wifi';
+      else if (amenity === 'parking') standardAmenity = 'Parking Space';
+      else if (amenity === 'pet friendly') standardAmenity = 'Pet Friendly';
+      else if (amenity === 'security') standardAmenity = '24/7 Security';
+      else if (amenity === 'pool' || amenity === 'swimming pool') standardAmenity = 'Swimming Pool';
+      else if (amenity === 'gym') standardAmenity = 'Gym / Fitness Center';
+      else if (amenity === 'refrigerator') standardAmenity = 'Refrigerator';
+      else if (amenity === 'stove') standardAmenity = 'Stove / Cooktop';
+      else if (amenity === 'microwave') standardAmenity = 'Microwave';
+      
+      filters.amenities.push(standardAmenity);
+    }
+  }
+
+  // Extract property type
+  for (const type of PROPERTY_FILTERS.propertyTypes) {
+    if (lowerMessage.includes(type)) {
+      if (type === 'apartment') filters.propertyType = 'APARTMENT';
+      else if (type === 'condominium' || type === 'condo') {
+        // Handle both possible spellings in database
+        filters.propertyType = 'CONDOMINIUM';
+      }
+      else if (type === 'boarding house') filters.propertyType = 'BOARDING_HOUSE';
+      else if (type === 'single house' || type === 'house') filters.propertyType = 'SINGLE_HOUSE';
+      console.log(`Detected property type: ${type} -> ${filters.propertyType}`);
+      break;
+    }
+  }
+
+  // Extract price information - only when explicitly mentioned with price keywords
+  const priceKeywords = ['price', 'budget', 'cost', 'rent', 'peso', '₱', 'php', 'under', 'below', 'above', 'over', 'max', 'min', 'maximum', 'minimum'];
+  const hasPriceContext = priceKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  console.log(`Price context check: hasPriceContext=${hasPriceContext}, message="${lowerMessage}"`);
+  
+  if (hasPriceContext) {
+    const priceMatch = lowerMessage.match(/(\d+)(?:k|,000)?(?:\s*-\s*(\d+)(?:k|,000)?)?/);
+    if (priceMatch) {
+      const firstPrice = parseInt(priceMatch[1]);
+      const minPrice = firstPrice < 1000 ? firstPrice * 1000 : firstPrice;
+      filters.minPrice = minPrice;
+      if (priceMatch[2]) {
+        const secondPrice = parseInt(priceMatch[2]);
+        const maxPrice = secondPrice < 1000 ? secondPrice * 1000 : secondPrice;
+        filters.maxPrice = maxPrice;
+      } else {
+        // If only one price is mentioned, treat it as max price
+        filters.maxPrice = minPrice;
+        filters.minPrice = null;
+      }
+    }
+  }
+
+  // Check for price range keywords
+  for (const [range, prices] of Object.entries(PROPERTY_FILTERS.priceRanges)) {
+    if (lowerMessage.includes(range)) {
+      filters.minPrice = prices.min;
+      filters.maxPrice = prices.max;
+      break;
+    }
+  }
+
+  // Extract search terms - ONLY the text inside quotes
+  // Look for text within single or double quotes
+  const quotedMatch = message.match(/['"]([^'"]+)['"]/);
+  if (quotedMatch) {
+    const searchTerm = quotedMatch[1].trim();
+    if (searchTerm.length > 0) {
+      filters.search = searchTerm;
+      console.log(`Extracted search term from quotes: "${searchTerm}"`);
+    }
+  }
+
+  return filters;
+}
+
 export const handleChatbotMessage = async (req, res) => {
   try {
     const { message, conversationHistory = [] } = req.body;
@@ -13,6 +137,10 @@ export const handleChatbotMessage = async (req, res) => {
       });
     }
 
+    // Detect property filtering intent
+    const propertyFilters = detectPropertyFilters(message);
+    console.log('Detected filters:', propertyFilters);
+
     // If no API key is configured, use smart fallback responses
     if (!OPENROUTER_API_KEY) {
       console.log("OpenRouter API key not found, using fallback responses");
@@ -20,17 +148,18 @@ export const handleChatbotMessage = async (req, res) => {
         CHATBOT_API: process.env.CHATBOT_API ? "SET" : "NOT SET",
         OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ? "SET" : "NOT SET"
       });
-      const fallbackResponse = generateSmartFallbackResponse(message);
+      const fallbackResponse = generateSmartFallbackResponse(message, propertyFilters);
       return res.json({
         response: fallbackResponse,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        filters: propertyFilters.hasPropertyIntent ? propertyFilters : null
       });
     }
 
     console.log("Using OpenRouter API with key:", OPENROUTER_API_KEY.substring(0, 10) + "...");
 
     // Create a system prompt that makes the AI a helpful general assistant
-    const systemPrompt = `You are a helpful AI assistant. Answer questions directly and concisely. 
+    const systemPrompt = `You are a helpful AI assistant for RentEase, a property rental platform. Answer questions directly and concisely. 
 
 Key guidelines:
 - Give direct, accurate answers to specific questions
@@ -39,7 +168,14 @@ Key guidelines:
 - Keep responses relevant to what was actually asked
 - Be conversational but stay on topic
 
-You can also help with RentEase property search if users ask about rental properties, but primarily act as a general-purpose AI assistant.`;
+For property-related questions:
+- When users ask about finding properties, respond with helpful messages like "I'll help you find properties with those criteria!" or "Let me apply those filters for you!"
+- If users want to search for a specific property name, suggest they put it in quotes like "Sample 2"
+- Do NOT give instructions on how to use filters - the system will automatically apply them
+- Be encouraging and confirm that you're helping them find properties
+- Keep responses short and friendly
+
+You can help with RentEase property search and general questions.`;
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -74,10 +210,11 @@ You can also help with RentEase property search if users ask about rental proper
       // Handle rate limiting specifically
       if (response.status === 429) {
         console.log("Rate limit hit, using fallback response");
-        const fallbackResponse = generateSmartFallbackResponse(message);
+        const fallbackResponse = generateSmartFallbackResponse(message, propertyFilters);
         return res.json({
           response: fallbackResponse,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          filters: propertyFilters.hasPropertyIntent ? propertyFilters : null
         });
       }
       
@@ -94,11 +231,15 @@ You can also help with RentEase property search if users ask about rental proper
 
     res.json({
       response: aiResponse,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      filters: propertyFilters.hasPropertyIntent ? propertyFilters : null
     });
 
   } catch (error) {
     console.error("Chatbot error:", error);
+    
+    // Detect property filters even in error case
+    const propertyFilters = detectPropertyFilters(message);
     
     // Fallback response when API fails
     const fallbackResponses = [
@@ -111,50 +252,80 @@ You can also help with RentEase property search if users ask about rental proper
     
     res.json({
       response: randomFallback,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      filters: propertyFilters.hasPropertyIntent ? propertyFilters : null
     });
   }
 };
 
 // Smart fallback response generator when API is not available
-function generateSmartFallbackResponse(message) {
+function generateSmartFallbackResponse(message, propertyFilters = null) {
   const lowerMessage = message.toLowerCase();
+  
+  // If we detected property filters, provide a more specific response
+  if (propertyFilters && propertyFilters.hasPropertyIntent) {
+    let response = "I found some property search criteria in your message! ";
+    
+    if (propertyFilters.location) {
+      response += `I'll help you find properties in ${propertyFilters.location}. `;
+    }
+    
+    if (propertyFilters.amenities.length > 0) {
+      response += `Looking for properties with ${propertyFilters.amenities.join(', ')}. `;
+    }
+    
+    if (propertyFilters.propertyType) {
+      response += `Searching for ${propertyFilters.propertyType.toLowerCase()} properties. `;
+    }
+    
+    if (propertyFilters.minPrice || propertyFilters.maxPrice) {
+      const priceRange = propertyFilters.minPrice && propertyFilters.maxPrice 
+        ? `₱${propertyFilters.minPrice.toLocaleString()} - ₱${propertyFilters.maxPrice.toLocaleString()}`
+        : propertyFilters.minPrice 
+        ? `₱${propertyFilters.minPrice.toLocaleString()}+`
+        : `up to ₱${propertyFilters.maxPrice.toLocaleString()}`;
+      response += `Within your budget of ${priceRange}. `;
+    }
+    
+    response += "I'll apply these filters to help you find the perfect property!";
+    return response;
+  }
   
   // Location-based responses
   if (lowerMessage.includes('cebu') || lowerMessage.includes('mandaue') || lowerMessage.includes('lapu-lapu')) {
-    return "Great choice! I can help you find properties in that area. Try using the location filter above to search for 'Cebu City', 'Mandaue', or 'Lapu-Lapu City'. You can also specify your budget and preferred amenities!";
+    return "I'll help you find properties in that area! Let me apply the location filter for you.";
   }
   
   // Budget-based responses
   if (lowerMessage.includes('budget') || lowerMessage.includes('price') || lowerMessage.includes('₱') || lowerMessage.includes('peso')) {
-    return "I'd be happy to help you find properties within your budget! Use the search filters above to browse by price range. Most properties range from ₱8,000 to ₱15,000 per month. What's your preferred budget range?";
+    return "I'll help you find properties within your budget! Let me apply the price filter for you.";
   }
   
   // Room/bedroom responses
   if (lowerMessage.includes('bedroom') || lowerMessage.includes('br') || lowerMessage.includes('room') || lowerMessage.includes('studio')) {
-    return "Perfect! I can help you find the right size property. Use the search filters to look for studios, 1BR, 2BR, or larger units. You can also filter by maximum occupancy to find the perfect fit for your needs.";
+    return "I'll help you find the right size property! Let me apply the appropriate filters for you.";
   }
   
   // Amenity-based responses
   if (lowerMessage.includes('wifi') || lowerMessage.includes('parking') || lowerMessage.includes('ac') || lowerMessage.includes('air conditioning') || lowerMessage.includes('furnished')) {
-    return "Excellent! Those are popular amenities. Use the amenities filter above to search for 'WiFi', 'Parking Space', 'Air Conditioning', or 'Furnished' properties. You can combine multiple amenities to find your ideal rental!";
+    return "I'll help you find properties with those amenities! Let me apply the amenity filters for you.";
   }
   
   // Pet-related responses
   if (lowerMessage.includes('pet') || lowerMessage.includes('dog') || lowerMessage.includes('cat')) {
-    return "Pet-friendly properties are available! Look for the 'Pet Friendly' amenity in the search filters. Many landlords welcome pets with a small additional deposit.";
+    return "I'll help you find pet-friendly properties! Let me apply the pet-friendly filter for you.";
   }
   
   // General property search responses
-  if (lowerMessage.includes('property') || lowerMessage.includes('rental') || lowerMessage.includes('apartment') || lowerMessage.includes('house')) {
-    return "I can help you find the perfect rental property! Use the search filters above to narrow down by location, amenities, and property type. You can search for apartments, condominiums, boarding houses, or single houses.";
+  if (lowerMessage.includes('property') || lowerMessage.includes('rental') || lowerMessage.includes('apartment') || lowerMessage.includes('house') || lowerMessage.includes('condo') || lowerMessage.includes('condominium')) {
+    return "I'll help you find the perfect rental property! Let me apply the appropriate filters for you.";
   }
   
   // Help/greeting responses
   if (lowerMessage.includes('help') || lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-    return "Hi there! I'm here to help you find your perfect rental property. Try asking me about specific locations like 'Cebu City', amenities like 'WiFi and parking', or budget ranges. You can also use the search filters above for more detailed searches!";
+    return "Hi there! I'm here to help you find your perfect rental property. Try asking me about specific locations like 'Cebu City', amenities like 'WiFi and parking', or budget ranges. I'll automatically apply the filters for you!";
   }
   
   // Default response
-  return "I understand you're looking for a rental property! Try using the search filters above to find properties by location, amenities, or property type. You can also ask me about specific features like '2BR with WiFi in Cebu City' and I'll guide you to the right filters!";
+  return "I'll help you find the perfect rental property! Let me apply the appropriate filters for you.";
 }

@@ -14,9 +14,46 @@ interface Message {
 
 interface ChatbotProps {
   className?: string;
+  onApplyFilters?: (filters: {
+    search?: string;
+    location?: string;
+    amenities?: string[];
+    propertyType?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  }) => void;
 }
 
-const Chatbot = ({ className = "" }: ChatbotProps) => {
+// Helper function to format filter message
+const formatFilterMessage = (filters: {
+  search?: string;
+  location?: string;
+  amenities?: string[];
+  propertyType?: string;
+  minPrice?: number;
+  maxPrice?: number;
+}) => {
+  const parts = [];
+  
+  if (filters.search) parts.push(`Search: "${filters.search}"`);
+  if (filters.location) parts.push(`Location: ${filters.location}`);
+  if (filters.propertyType) parts.push(`Type: ${filters.propertyType}`);
+  if (filters.amenities && filters.amenities.length > 0) {
+    parts.push(`Amenities: ${filters.amenities.join(', ')}`);
+  }
+  if (filters.minPrice || filters.maxPrice) {
+    const priceRange = filters.minPrice && filters.maxPrice 
+      ? `₱${filters.minPrice.toLocaleString()} - ₱${filters.maxPrice.toLocaleString()}`
+      : filters.minPrice 
+      ? `₱${filters.minPrice.toLocaleString()}+`
+      : `up to ₱${filters.maxPrice.toLocaleString()}`;
+    parts.push(`Price: ${priceRange}`);
+  }
+  
+  return parts.join(', ');
+};
+
+const Chatbot = ({ className = "", onApplyFilters }: ChatbotProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -83,6 +120,22 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Apply filters if they were detected
+      if (data.filters && onApplyFilters) {
+        console.log('Chatbot received filters:', data.filters);
+        
+        // Add a visual message showing what filters are being applied
+        const filterMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          role: "assistant",
+          content: `🔍 Applying filters: ${formatFilterMessage(data.filters)}`,
+          timestamp: new Date(),
+        };
+        
+        setMessages(prev => [...prev, filterMessage]);
+        onApplyFilters(data.filters);
+      }
     } catch (error) {
       console.error("Chatbot error:", error);
       toast.error("Sorry, I'm having trouble responding right now. Please try again.");
@@ -108,10 +161,10 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
   };
 
   const quickSuggestions = [
-    "Help me find a 2 bedroom apartment",
-    "What properties are available in Cebu City?",
-    "Tell me about the rental process",
-    "What amenities do you offer?",
+    "Find me the property named \"Sample 2\"",
+    "Show me properties under ₱15,000",
+    "Find apartments in Cebu City",
+    "What condos are available in Mandaue?",
   ];
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -123,7 +176,7 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
       {isOpen ? (
         <Card className="w-96 h-[500px] shadow-2xl border-0 bg-white rounded-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-600 to-sky-600 text-white p-3 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
                 <Bot className="w-3 h-3 text-white" />
@@ -151,14 +204,14 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
                 }`}
               >
                 {message.role === "assistant" && (
-                  <div className="w-5 h-5 bg-gradient-to-r from-emerald-600 to-sky-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <div className="w-5 h-5 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Bot className="w-2.5 h-2.5 text-white" />
                   </div>
                 )}
                 <div
                   className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
                     message.role === "user"
-                      ? "bg-gradient-to-r from-emerald-600 to-sky-600 text-white rounded-br-sm"
+                      ? "bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-br-sm"
                       : "bg-white text-gray-900 rounded-bl-sm border border-gray-200"
                   }`}
                 >
@@ -174,7 +227,7 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
             
             {isLoading && (
               <div className="flex gap-1.5 justify-start">
-                <div className="w-5 h-5 bg-gradient-to-r from-emerald-600 to-sky-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-5 h-5 bg-gradient-to-r from-green-500 to-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Bot className="w-2.5 h-2.5 text-white" />
                 </div>
                 <div className="bg-white text-gray-900 rounded-lg rounded-bl-sm border border-gray-200 px-2.5 py-1.5 text-xs">
@@ -195,7 +248,7 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
             <div className="bg-white border-t border-gray-100">
               <button
                 onClick={() => setShowSuggestions(!showSuggestions)}
-                className="w-full p-3 text-left text-xs text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-between"
+                className="w-full p-3 text-left text-xs text-green-600 hover:bg-green-50 transition-colors flex items-center justify-between"
               >
                 <span>💡 Try asking</span>
                 <span className={`transform transition-transform ${showSuggestions ? 'rotate-180' : ''}`}>
@@ -211,7 +264,7 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
                         handleSuggestionClick(suggestion);
                         setShowSuggestions(false);
                       }}
-                      className="block w-full text-left text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-2 rounded transition-colors"
+                      className="block w-full text-left text-xs text-green-600 hover:text-green-700 hover:bg-green-50 p-2 rounded transition-colors"
                     >
                       {suggestion}
                     </button>
@@ -230,14 +283,14 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Ask me anything..."
-                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                 disabled={isLoading}
               />
               <Button
                 onClick={sendMessage}
                 disabled={!input.trim() || isLoading}
                 size="sm"
-                className="rounded-lg w-8 h-8 p-0 bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700"
+                className="rounded-lg w-8 h-8 p-0 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600"
               >
                 <Send className="w-3 h-3" />
               </Button>
@@ -247,7 +300,7 @@ const Chatbot = ({ className = "" }: ChatbotProps) => {
       ) : (
         <Button
           onClick={() => setIsOpen(true)}
-          className="w-12 h-12 rounded-full bg-gradient-to-r from-emerald-600 to-sky-600 hover:from-emerald-700 hover:to-sky-700 shadow-lg"
+          className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 shadow-lg"
         >
           <MessageCircle className="w-5 h-5 text-white" />
         </Button>

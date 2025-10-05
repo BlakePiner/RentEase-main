@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Home, Search, MapPin, BedDouble, Maximize, Filter, ChevronLeft, ChevronRight, Eye, Star, Loader2 } from "lucide-react";
@@ -28,21 +28,25 @@ const StarRating = ({ rating, reviewCount }: { rating: number; reviewCount: numb
 };
 
 const BrowseProperties = () => {
-  // State for search and filters
-  const [query, setQuery] = useState("");
-  const [location, setLocation] = useState<string>("ALL");
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // State for search and filters - initialize from URL params
+  const [query, setQuery] = useState(searchParams.get("search") || "");
+  const [location, setLocation] = useState<string>(searchParams.get("location") || "ALL");
   const [locationQuery, setLocationQuery] = useState("");
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
-  const [selectedAmenities, setSelectedAmenities] = useState<Set<string>>(new Set());
+  const [selectedAmenities, setSelectedAmenities] = useState<Set<string>>(
+    new Set(searchParams.get("amenities")?.split(",").filter(Boolean) || [])
+  );
   const [amenityQuery, setAmenityQuery] = useState("");
   const [showAmenitySuggestions, setShowAmenitySuggestions] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(parseInt(searchParams.get("page") || "1"));
   const [isScrolled, setIsScrolled] = useState(false);
-  const [propertyType, setPropertyType] = useState<string>("ALL");
-  const [minPrice, setMinPrice] = useState<string>("");
-  const [maxPrice, setMaxPrice] = useState<string>("");
-  const [sortBy, setSortBy] = useState<string>("newest");
+  const [propertyType, setPropertyType] = useState<string>(searchParams.get("propertyType") || "ALL");
+  const [minPrice, setMinPrice] = useState<string>(searchParams.get("minPrice") || "");
+  const [maxPrice, setMaxPrice] = useState<string>(searchParams.get("maxPrice") || "");
+  const [sortBy, setSortBy] = useState<string>(searchParams.get("sortBy") || "newest");
 
   // API data state
   const [data, setData] = useState<BrowsePropertiesResponse | null>(null);
@@ -59,6 +63,31 @@ const BrowseProperties = () => {
   const [appliedSortBy, setAppliedSortBy] = useState<string>("newest");
 
   const pageSize = 12;
+
+  // Update URL params when filters change
+  const updateURLParams = (newFilters: {
+    search?: string;
+    location?: string;
+    amenities?: string[];
+    propertyType?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    sortBy?: string;
+    page?: number;
+  }) => {
+    const params = new URLSearchParams();
+    
+    if (newFilters.search) params.set("search", newFilters.search);
+    if (newFilters.location && newFilters.location !== "ALL") params.set("location", newFilters.location);
+    if (newFilters.amenities && newFilters.amenities.length > 0) params.set("amenities", newFilters.amenities.join(","));
+    if (newFilters.propertyType && newFilters.propertyType !== "ALL") params.set("propertyType", newFilters.propertyType);
+    if (newFilters.minPrice) params.set("minPrice", newFilters.minPrice);
+    if (newFilters.maxPrice) params.set("maxPrice", newFilters.maxPrice);
+    if (newFilters.sortBy && newFilters.sortBy !== "newest") params.set("sortBy", newFilters.sortBy);
+    if (newFilters.page && newFilters.page > 1) params.set("page", newFilters.page.toString());
+    
+    setSearchParams(params);
+  };
 
   // Fetch properties from API
   const fetchProperties = async () => {
@@ -88,6 +117,27 @@ const BrowseProperties = () => {
     }
   };
 
+  // Initialize applied filters from URL params on mount
+  useEffect(() => {
+    const urlSearch = searchParams.get("search") || "";
+    const urlLocation = searchParams.get("location") || "ALL";
+    const urlAmenities = new Set(searchParams.get("amenities")?.split(",").filter(Boolean) || []);
+    const urlPropertyType = searchParams.get("propertyType") || "ALL";
+    const urlMinPrice = searchParams.get("minPrice") || "";
+    const urlMaxPrice = searchParams.get("maxPrice") || "";
+    const urlSortBy = searchParams.get("sortBy") || "newest";
+    const urlPage = parseInt(searchParams.get("page") || "1");
+
+    setAppliedQuery(urlSearch);
+    setAppliedLocation(urlLocation);
+    setAppliedAmenities(urlAmenities);
+    setAppliedPropertyType(urlPropertyType);
+    setAppliedMinPrice(urlMinPrice);
+    setAppliedMaxPrice(urlMaxPrice);
+    setAppliedSortBy(urlSortBy);
+    setPage(urlPage);
+  }, []); // Only run on mount
+
   // Initial load and when filters change
   useEffect(() => {
     fetchProperties();
@@ -103,6 +153,75 @@ const BrowseProperties = () => {
     setAppliedMaxPrice(maxPrice);
     setAppliedSortBy(sortBy);
     setPage(1);
+    
+    // Update URL params
+    updateURLParams({
+      search: query,
+      location: location,
+      amenities: Array.from(selectedAmenities),
+      propertyType: propertyType,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      sortBy: sortBy,
+      page: 1
+    });
+  };
+
+  // Handle chatbot filter application
+  const handleChatbotFilters = (filters: {
+    search?: string;
+    location?: string;
+    amenities?: string[];
+    propertyType?: string;
+    minPrice?: number;
+    maxPrice?: number;
+  }) => {
+    console.log('Applying chatbot filters:', filters);
+    // Update the filter states
+    if (filters.search) setQuery(filters.search);
+    if (filters.location) setLocation(filters.location);
+    if (filters.amenities) setSelectedAmenities(new Set(filters.amenities));
+    if (filters.propertyType) setPropertyType(filters.propertyType);
+    if (filters.minPrice) setMinPrice(filters.minPrice.toString());
+    if (filters.maxPrice) setMaxPrice(filters.maxPrice.toString());
+
+    // Apply the filters immediately
+    const newSearch = filters.search || query;
+    const newLocation = filters.location || location;
+    const newAmenities = filters.amenities ? new Set(filters.amenities) : selectedAmenities;
+    const newPropertyType = filters.propertyType || propertyType;
+    const newMinPrice = filters.minPrice ? filters.minPrice.toString() : minPrice;
+    const newMaxPrice = filters.maxPrice ? filters.maxPrice.toString() : maxPrice;
+
+    setAppliedQuery(newSearch);
+    setAppliedLocation(newLocation);
+    setAppliedAmenities(newAmenities);
+    setAppliedPropertyType(newPropertyType);
+    setAppliedMinPrice(newMinPrice);
+    setAppliedMaxPrice(newMaxPrice);
+    setPage(1);
+
+    // Update URL params
+    updateURLParams({
+      search: newSearch,
+      location: newLocation,
+      amenities: Array.from(newAmenities),
+      propertyType: newPropertyType,
+      minPrice: newMinPrice,
+      maxPrice: newMaxPrice,
+      page: 1
+    });
+
+    // Show success message with details
+    const filterDetails = [];
+    if (newSearch) filterDetails.push(`Search: "${newSearch}"`);
+    if (newLocation !== "ALL") filterDetails.push(`Location: ${newLocation}`);
+    if (newPropertyType !== "ALL") filterDetails.push(`Type: ${newPropertyType}`);
+    if (newAmenities.size > 0) filterDetails.push(`Amenities: ${Array.from(newAmenities).join(', ')}`);
+    if (newMinPrice) filterDetails.push(`Min Price: ₱${parseInt(newMinPrice).toLocaleString()}`);
+    if (newMaxPrice) filterDetails.push(`Max Price: ₱${parseInt(newMaxPrice).toLocaleString()}`);
+    
+    toast.success(`🔍 Filters applied from chatbot: ${filterDetails.join(', ')}`);
   };
 
   // Toggle amenity selection
@@ -468,7 +587,20 @@ const BrowseProperties = () => {
                       setMinPrice("");
                       setMaxPrice("");
                       setSelectedAmenities(new Set());
-                      executeSearch();
+                      setSortBy("newest");
+                      
+                      // Clear applied filters
+                      setAppliedQuery("");
+                      setAppliedLocation("ALL");
+                      setAppliedPropertyType("ALL");
+                      setAppliedMinPrice("");
+                      setAppliedMaxPrice("");
+                      setAppliedAmenities(new Set());
+                      setAppliedSortBy("newest");
+                      setPage(1);
+                      
+                      // Clear URL params
+                      setSearchParams({});
                     }} variant="outline">
                       Clear Filters
                     </Button>
@@ -510,7 +642,7 @@ const BrowseProperties = () => {
       </div>
 
       {/* Chatbot */}
-      <Chatbot />
+      <Chatbot onApplyFilters={handleChatbotFilters} />
     </div>
   );
 };
