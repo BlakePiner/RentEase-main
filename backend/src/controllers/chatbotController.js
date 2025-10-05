@@ -6,7 +6,20 @@ const OPENROUTER_API_KEY = process.env.CHATBOT_API || process.env.OPENROUTER_API
 // Property filtering patterns and responses
 const PROPERTY_FILTERS = {
   locations: ['cebu city', 'mandaue', 'lapu-lapu', 'talamban', 'lahug', 'banilad', 'ayala', 'it park'],
-  amenities: ['wifi', 'parking', 'air conditioning', 'aircon', 'ac', 'furnished', 'pet friendly', 'security', 'gym', 'pool', 'swimming pool', 'refrigerator', 'stove', 'microwave'],
+  // Only the 4 amenities available in the Browse Properties UI
+  amenities: {
+    'wifi': 'WiFi',
+    'internet': 'WiFi',
+    'wireless': 'WiFi',
+    'air conditioning': 'Air Conditioning',
+    'aircon': 'Air Conditioning',
+    'ac': 'Air Conditioning',
+    'air-conditioning': 'Air Conditioning',
+    'security': '24/7 Security',
+    '24/7 security': '24/7 Security',
+    '24/7': '24/7 Security',
+    'balcony': 'Balcony'
+  },
   propertyTypes: ['apartment', 'condominium', 'condo', 'boarding house', 'single house', 'house'],
   priceRanges: {
     'budget': { min: 5000, max: 10000 },
@@ -17,7 +30,7 @@ const PROPERTY_FILTERS = {
 };
 
 // Function to detect property filtering intent and extract parameters
-function detectPropertyFilters(message) {
+export function detectPropertyFilters(message) {
   const lowerMessage = message.toLowerCase();
   const filters = {
     search: null,
@@ -30,7 +43,7 @@ function detectPropertyFilters(message) {
   };
 
   // Check if message contains property-related keywords
-  const propertyKeywords = ['property', 'properties', 'rental', 'apartment', 'condo', 'condominium', 'house', 'room', 'bedroom', 'br', 'studio', 'rent', 'lease', 'show', 'find', 'search'];
+  const propertyKeywords = ['property', 'properties', 'rental', 'apartment', 'condo', 'condominium', 'house', 'room', 'bedroom', 'br', 'studio', 'rent', 'lease', 'show', 'find', 'search', 'place', 'places', 'need', 'want', 'looking', 'looking for'];
   filters.hasPropertyIntent = propertyKeywords.some(keyword => lowerMessage.includes(keyword));
 
   if (!filters.hasPropertyIntent) {
@@ -45,23 +58,15 @@ function detectPropertyFilters(message) {
     }
   }
 
-  // Extract amenities
-  for (const amenity of PROPERTY_FILTERS.amenities) {
-    if (lowerMessage.includes(amenity)) {
-      // Map common variations to standard names (matching database values)
-      let standardAmenity = amenity;
-      if (amenity === 'ac' || amenity === 'aircon' || amenity === 'air conditioning') standardAmenity = 'Aircon';
-      else if (amenity === 'wifi') standardAmenity = 'Wifi';
-      else if (amenity === 'parking') standardAmenity = 'Parking Space';
-      else if (amenity === 'pet friendly') standardAmenity = 'Pet Friendly';
-      else if (amenity === 'security') standardAmenity = '24/7 Security';
-      else if (amenity === 'pool' || amenity === 'swimming pool') standardAmenity = 'Swimming Pool';
-      else if (amenity === 'gym') standardAmenity = 'Gym / Fitness Center';
-      else if (amenity === 'refrigerator') standardAmenity = 'Refrigerator';
-      else if (amenity === 'stove') standardAmenity = 'Stove / Cooktop';
-      else if (amenity === 'microwave') standardAmenity = 'Microwave';
-      
-      filters.amenities.push(standardAmenity);
+  // Extract amenities - only the 4 available in Browse Properties UI
+  for (const [variation, standardAmenity] of Object.entries(PROPERTY_FILTERS.amenities)) {
+    // Use word boundary matching for better accuracy
+    const regex = new RegExp(`\\b${variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (regex.test(lowerMessage)) {
+      if (!filters.amenities.includes(standardAmenity)) {
+        filters.amenities.push(standardAmenity);
+        console.log(`✅ Detected amenity: "${variation}" -> "${standardAmenity}"`);
+      }
     }
   }
 
@@ -306,8 +311,8 @@ function generateSmartFallbackResponse(message, propertyFilters = null) {
     return "I'll help you find the right size property! Let me apply the appropriate filters for you.";
   }
   
-  // Amenity-based responses
-  if (lowerMessage.includes('wifi') || lowerMessage.includes('parking') || lowerMessage.includes('ac') || lowerMessage.includes('air conditioning') || lowerMessage.includes('furnished')) {
+  // Amenity-based responses - only for the 4 available amenities
+  if (lowerMessage.includes('wifi') || lowerMessage.includes('air conditioning') || lowerMessage.includes('ac') || lowerMessage.includes('aircon') || lowerMessage.includes('security') || lowerMessage.includes('balcony')) {
     return "I'll help you find properties with those amenities! Let me apply the amenity filters for you.";
   }
   
@@ -323,7 +328,7 @@ function generateSmartFallbackResponse(message, propertyFilters = null) {
   
   // Help/greeting responses
   if (lowerMessage.includes('help') || lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey')) {
-    return "Hi there! I'm here to help you find your perfect rental property. Try asking me about specific locations like 'Cebu City', amenities like 'WiFi and parking', or budget ranges. I'll automatically apply the filters for you!";
+    return "Hi there! I'm here to help you find your perfect rental property. Try asking me about specific locations like 'Cebu City', amenities like 'WiFi, Air Conditioning, 24/7 Security, or Balcony', or budget ranges. I'll automatically apply the filters for you!";
   }
   
   // Default response
