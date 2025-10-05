@@ -1512,7 +1512,7 @@ export const getAvailableLeasesForTenant = async (req, res) => {
     }
 
     // Get available draft leases for this unit by this landlord
-    // Look for leases that are either assigned to this tenant OR are unassigned (DRAFT with no tenant)
+    // Look for leases that are assigned to this tenant
     const availableLeases = await prisma.lease.findMany({
       where: {
         unit: {
@@ -1522,15 +1522,7 @@ export const getAvailableLeasesForTenant = async (req, res) => {
         },
         unitId: unitId,
         status: 'DRAFT',
-        // Include leases assigned to this tenant OR unassigned leases
-        OR: [
-          {
-            tenantId: tenantId // Leases already assigned to this tenant
-          },
-          {
-            tenantId: null // Unassigned leases
-          }
-        ]
+        tenantId: tenantId // Only leases assigned to this specific tenant
       },
       include: {
         unit: {
@@ -1585,8 +1577,14 @@ export const getAvailableLeasesForTenant = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error fetching available leases:", error);
-    return res.status(500).json({ message: "Failed to fetch available leases" });
+    console.error("❌ Error fetching available leases:", error);
+    console.error("❌ Error stack:", error.stack);
+    console.error("❌ Error message:", error.message);
+    return res.status(500).json({ 
+      message: "Failed to fetch available leases",
+      error: error.message,
+      details: error.stack
+    });
   }
 };
 

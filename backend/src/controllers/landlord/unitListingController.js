@@ -57,8 +57,53 @@ export const requestListing = async (req, res) => {
         paymentStatus: "UNPAID",
         riskLevel: "LOW", // default risk level
         fraudRiskScore: 0.1 // default low risk score
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              select: {
+                title: true
+              }
+            }
+          }
+        },
+        landlord: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
       }
     });
+
+    // Create notifications for all admins about the new listing request
+    try {
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true }
+      });
+
+      if (admins.length > 0) {
+        const notificationPromises = admins.map(admin => 
+          prisma.notification.create({
+            data: {
+              userId: admin.id,
+              type: 'LISTING_REQUEST',
+              message: `New listing request from ${listing.landlord.firstName} ${listing.landlord.lastName} for ${listing.unit.property.title} - Unit ${listing.unit.label}`,
+              status: 'UNREAD'
+            }
+          })
+        );
+        
+        await Promise.all(notificationPromises);
+        console.log(`Created notifications for ${admins.length} admins about listing request ${listing.id}`);
+      }
+    } catch (notificationError) {
+      console.error("Error creating admin notifications for listing request:", notificationError);
+      // Don't fail the listing request if notification fails
+    }
 
     res.json({
       message: "Listing request submitted successfully",

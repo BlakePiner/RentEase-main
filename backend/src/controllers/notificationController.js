@@ -222,6 +222,30 @@ function generateNotificationLink(notification) {
       }
       return "/landlord/properties";
       
+    case "LISTING_REQUEST":
+      if (messageLower.includes("listing request")) {
+        return "/admin/property-requests";
+      }
+      return "/admin/property-requests";
+      
+    case "LISTING":
+      if (messageLower.includes("listing")) {
+        return "/landlord/properties";
+      }
+      return "/landlord/properties";
+      
+    case "APPLICATION":
+      if (messageLower.includes("application")) {
+        return "/landlord/tenants";
+      }
+      return "/landlord/tenants";
+      
+    case "MAINTENANCE_REQUEST":
+      if (messageLower.includes("maintenance")) {
+        return "/landlord/maintenance";
+      }
+      return "/landlord/maintenance";
+      
     case "SYSTEM":
     default:
       return "/landlord/dashboard";
