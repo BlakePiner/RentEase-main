@@ -22,6 +22,7 @@ import {
   Download,
   Eye,
   MoreHorizontal,
+  Bell,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import {
   generateLeasePDF,
   type LeaseDetails 
 } from "@/api/landlordLeaseApi";
+import { sendPaymentReminderRequest } from "@/api/landlordPaymentApi";
 import { downloadPDF, generateLeaseFilename } from "@/lib/pdfUtils";
 import { toast } from "sonner";
 
@@ -41,6 +43,7 @@ const LeaseDetails = () => {
   const [lease, setLease] = useState<LeaseDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   useEffect(() => {
     if (!leaseId) return;
@@ -106,6 +109,28 @@ const LeaseDetails = () => {
       // Dismiss loading toast and show error
       toast.dismiss(loadingToast);
       toast.error(err.response?.data?.message || "Failed to generate PDF");
+    }
+  };
+
+  const handleSendReminder = async () => {
+    if (!lease || !leaseId) return;
+
+    setSendingReminder(true);
+    const loadingToast = toast.loading("Sending payment reminder...");
+    
+    try {
+      const response = await sendPaymentReminderRequest(leaseId);
+      
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success(`Payment reminder sent to ${response.data.reminder.tenantName}`);
+    } catch (err: any) {
+      console.error("Error sending payment reminder:", err);
+      // Dismiss loading toast and show error
+      toast.dismiss(loadingToast);
+      toast.error(err.response?.data?.message || "Failed to send payment reminder");
+    } finally {
+      setSendingReminder(false);
     }
   };
 
@@ -457,6 +482,32 @@ const LeaseDetails = () => {
                   </span>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Payment Reminder */}
+          <Card>
+            <CardContent className="pt-6">
+              <Button 
+                onClick={handleSendReminder}
+                disabled={sendingReminder}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {sendingReminder ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Bell className="h-4 w-4 mr-2" />
+                    Remind Payment
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-gray-500 text-center mt-2">
+                Send a payment reminder to {lease?.tenant?.fullName || 'the tenant'}
+              </p>
             </CardContent>
           </Card>
 

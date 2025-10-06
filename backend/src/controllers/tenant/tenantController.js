@@ -1209,13 +1209,62 @@ export const submitTenantApplication = async (req, res) => {
       petTypes,
       otherLifestyle,
       
-      // Document URLs (if uploaded)
+      // Document URLs (if uploaded via form)
       idImageUrl,
       selfieUrl,
       nbiClearanceUrl,
       biodataUrl,
       proofOfIncomeUrl
     } = req.body;
+
+    // Convert string booleans to actual booleans
+    const isSmokerBool = isSmoker === 'true' || isSmoker === true;
+    const hasPetsBool = hasPets === 'true' || hasPets === true;
+    
+    // Parse JSON strings if they exist
+    let parsedCharacterReferences = characterReferences;
+    let parsedOtherLifestyle = otherLifestyle;
+    
+    if (typeof characterReferences === 'string') {
+      try {
+        parsedCharacterReferences = JSON.parse(characterReferences);
+      } catch (e) {
+        parsedCharacterReferences = null;
+      }
+    }
+    
+    if (typeof otherLifestyle === 'string') {
+      try {
+        parsedOtherLifestyle = JSON.parse(otherLifestyle);
+      } catch (e) {
+        parsedOtherLifestyle = {};
+      }
+    }
+
+    // Handle uploaded files
+    let finalIdImageUrl = idImageUrl;
+    let finalSelfieUrl = selfieUrl;
+    let finalNbiClearanceUrl = nbiClearanceUrl;
+    let finalBiodataUrl = biodataUrl;
+    let finalProofOfIncomeUrl = proofOfIncomeUrl;
+
+    if (req.files) {
+      if (req.files.idImage && req.files.idImage[0]) {
+        finalIdImageUrl = `/uploads/tenant-documents/${req.files.idImage[0].filename}`;
+      }
+      if (req.files.selfie && req.files.selfie[0]) {
+        finalSelfieUrl = `/uploads/tenant-documents/${req.files.selfie[0].filename}`;
+      }
+      if (req.files.nbiClearance && req.files.nbiClearance[0]) {
+        finalNbiClearanceUrl = `/uploads/tenant-documents/${req.files.nbiClearance[0].filename}`;
+      }
+      if (req.files.biodata && req.files.biodata[0]) {
+        finalBiodataUrl = `/uploads/tenant-documents/${req.files.biodata[0].filename}`;
+      }
+      if (req.files.proofOfIncome && req.files.proofOfIncome[0]) {
+        finalProofOfIncomeUrl = `/uploads/tenant-documents/${req.files.proofOfIncome[0].filename}`;
+      }
+    }
 
     if (!tenantId) {
       return res.status(401).json({ message: "Unauthorized: tenant not found" });
@@ -1310,20 +1359,20 @@ export const submitTenantApplication = async (req, res) => {
         previousLandlordName: previousLandlordName || null,
         previousLandlordContact: previousLandlordContact || null,
         rentalHistoryNotes: rentalHistoryNotes || null,
-        characterReferences: characterReferences || null,
+        characterReferences: parsedCharacterReferences || null,
         
         // Lifestyle
-        isSmoker: isSmoker || false,
-        hasPets: hasPets || false,
+        isSmoker: isSmokerBool,
+        hasPets: hasPetsBool,
         petTypes: petTypes || null,
-        otherLifestyle: otherLifestyle || null,
+        otherLifestyle: parsedOtherLifestyle || null,
         
         // Document URLs
-        idImageUrl: idImageUrl || null,
-        selfieUrl: selfieUrl || null,
-        nbiClearanceUrl: nbiClearanceUrl || null,
-        biodataUrl: biodataUrl || null,
-        proofOfIncomeUrl: proofOfIncomeUrl || null,
+        idImageUrl: finalIdImageUrl || null,
+        selfieUrl: finalSelfieUrl || null,
+        nbiClearanceUrl: finalNbiClearanceUrl || null,
+        biodataUrl: finalBiodataUrl || null,
+        proofOfIncomeUrl: finalProofOfIncomeUrl || null,
         
         // AI Analysis (will be calculated later)
         aiRiskScore: 0.2, // Default low risk
@@ -2162,6 +2211,133 @@ export const getTenantMessageStats = async (req, res) => {
   } catch (error) {
     console.error("Error fetching tenant message stats:", error);
     res.status(500).json({ message: "Failed to fetch message statistics" });
+  }
+};
+
+// ---------------------------------------------- SUBMIT TENANT PAYMENT (SANDBOX) ----------------------------------------------
+export const submitTenantPayment = async (req, res) => {
+  try {
+    const tenantId = req.user?.id;
+    const { amount, method, note } = req.body;
+
+    if (!tenantId) {
+      return res.status(401).json({ message: "Unauthorized: tenant not found" });
+    }
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: "Valid payment amount is required" });
+    }
+
+    if (!method) {
+      return res.status(400).json({ message: "Payment method is required" });
+    }
+
+    // Get the tenant's current lease
+    const currentLease = await prisma.lease.findFirst({
+      where: {
+        tenantId: tenantId,
+        OR: [
+          { status: "ACTIVE" },
+          { status: "DRAFT" }
+        ]
+      },
+      include: {
+        unit: {
+          include: {
+            property: {
+              select: {
+                id: true,
+                title: true,
+                ownerId: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!currentLease) {
+      return res.status(404).json({ message: "No active lease found. You must have an active lease to make payments." });
+    }
+
+    // Simulate payment processing (SANDBOX MODE)
+    // In a real implementation, this would integrate with payment providers like Stripe, GCash, etc.
+    const mockPaymentIntentId = `pi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Simulate 3-second processing delay
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Create payment record in database
+    const payment = await prisma.payment.create({
+      data: {
+        leaseId: currentLease.id,
+        amount: parseFloat(amount),
+        method: method.toUpperCase(),
+        providerTxnId: mockPaymentIntentId,
+        status: "PAID", // In sandbox mode, all payments are successful
+        timingStatus: "ONTIME", // Default to on-time for sandbox
+        isPartial: false,
+        note: note || `Payment via ${method} - Sandbox Mode`,
+        paidAt: new Date()
+      },
+      include: {
+        lease: {
+          include: {
+            unit: {
+              include: {
+                property: {
+                  select: {
+                    title: true,
+                    ownerId: true
+                  }
+                }
+              }
+            },
+            tenant: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Create notification for the landlord
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: currentLease.unit.property.ownerId,
+          type: "PAYMENT_RECEIVED",
+          message: `Payment of ₱${parseFloat(amount).toLocaleString()} received from ${payment.lease.tenant.firstName} ${payment.lease.tenant.lastName} for ${currentLease.unit.property.title}`,
+          status: "UNREAD"
+        }
+      });
+    } catch (notificationError) {
+      console.error("Error creating payment notification:", notificationError);
+      // Don't fail the payment if notification fails
+    }
+
+    res.status(201).json({
+      message: "Payment processed successfully (Sandbox Mode)",
+      payment: {
+        id: payment.id,
+        amount: payment.amount,
+        method: payment.method,
+        status: payment.status,
+        providerTxnId: payment.providerTxnId,
+        paidAt: payment.paidAt,
+        note: payment.note
+      },
+      sandbox: true // Indicate this is sandbox mode
+    });
+
+  } catch (error) {
+    console.error("Error processing tenant payment:", error);
+    res.status(500).json({ message: "Failed to process payment" });
   }
 };
 

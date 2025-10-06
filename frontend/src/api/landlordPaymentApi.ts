@@ -127,13 +127,12 @@ export interface PaymentHistory {
 }
 
 export interface PaymentReminder {
+  id: string;
+  conversationId: string;
   leaseId: string;
   tenantName: string;
   tenantEmail: string;
-  pendingAmount: number;
-  pendingCount: number;
   reminderType: string;
-  message: string;
   sentAt: string;
 }
 

@@ -46,10 +46,12 @@ import { getTenantLeaseDetails, downloadLeasePDF, type TenantLeaseDetails } from
 import { downloadPDF, generateLeaseFilename } from "@/lib/pdfUtils";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { toast } from "sonner";
+import TenantPaymentModal from "@/components/TenantPaymentModal";
 
 const MyLease = () => {
   const [lease, setLease] = useState<TenantLeaseDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
@@ -191,6 +193,12 @@ const MyLease = () => {
       default:
         return interval.toLowerCase();
     }
+  };
+
+  const handlePaymentSuccess = (paymentData: any) => {
+    console.log("Payment successful:", paymentData);
+    // Refresh lease data to show updated payment information
+    window.location.reload();
   };
 
   if (loading) {
@@ -657,6 +665,14 @@ const MyLease = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                onClick={() => setShowPaymentModal(true)}
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                Make Payment
+              </Button>
               <Button variant="outline" className="w-full justify-start" asChild>
                 <Link to="/tenant/payments">
                   <CreditCard className="h-4 w-4 mr-2" />
@@ -723,6 +739,33 @@ const MyLease = () => {
           )}
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {lease && (
+        <TenantPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onPaymentSuccess={handlePaymentSuccess}
+          leaseDetails={{
+            id: lease.id,
+            leaseNickname: lease.leaseNickname,
+            rentAmount: lease.rentAmount,
+            interval: lease.interval,
+            unit: {
+              label: lease.unit.label,
+              property: {
+                title: lease.unit.property.title,
+                address: lease.unit.property.address
+              }
+            },
+            landlord: {
+              firstName: lease.landlord.firstName || '',
+              lastName: lease.landlord.lastName || '',
+              email: lease.landlord.email
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

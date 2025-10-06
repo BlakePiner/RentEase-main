@@ -27,6 +27,7 @@ import {
   Download
 } from "lucide-react";
 import { updateTenantApplicationStatusRequest, getAvailableLeasesForTenantRequest, assignLeaseToTenantRequest, type TenantApplication } from "@/api/landlordTenantApi";
+import DocumentPreview from "./DocumentPreview";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -666,34 +667,20 @@ const TenantApplicationReview = ({ application, onApplicationUpdate, onClose }: 
 
       {/* Document Viewer Modal */}
       <Dialog open={showDocumentModal} onOpenChange={setShowDocumentModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogContent className="max-w-5xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>{selectedDocument?.title}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {selectedDocument?.title}
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto p-4">
             {selectedDocument?.url && (
-              <div className="text-center p-8">
-                <img 
-                  src={selectedDocument.url} 
-                  alt={selectedDocument.title}
-                  className="max-w-full max-h-[60vh] mx-auto rounded-lg shadow-lg"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.nextElementSibling!.style.display = 'block';
-                  }}
-                />
-                <div style={{ display: 'none' }} className="text-gray-500">
-                  <FileText className="h-16 w-16 mx-auto mb-4" />
-                  <p>Document preview not available</p>
-                  <Button 
-                    onClick={() => window.open(selectedDocument.url, '_blank')}
-                    className="mt-4"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download Document
-                  </Button>
-                </div>
-              </div>
+              <DocumentPreview
+                url={selectedDocument.url}
+                title={selectedDocument.title}
+                type={selectedDocument.type}
+              />
             )}
           </div>
         </DialogContent>

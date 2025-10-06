@@ -2,6 +2,7 @@
 import { Router } from "express";
 import { requireAuthentication } from "../middlewares/requireAuthentication.js";
 import { uploadMaintenanceImage, handleMaintenanceImageUploadError } from "../middlewares/maintenanceImageUpload.js";
+import { uploadTenantDocuments, handleTenantDocumentUploadError } from "../middlewares/tenantDocumentUpload.js";
 import { 
   getTenantDashboardData,
   getTenantLeaseDetails,
@@ -20,7 +21,8 @@ import {
   deleteTenantMessage,
   deleteTenantConversation,
   getTenantMessageStats,
-  downloadLeasePDF
+  downloadLeasePDF,
+  submitTenantPayment
 } from "../controllers/tenant/tenantController.js";
 
 const router = Router();
@@ -34,6 +36,7 @@ router.get("/lease/:leaseId/pdf", requireAuthentication(["TENANT"]), downloadLea
 
 // ---------------------------- Payments
 router.get("/payments", requireAuthentication(["TENANT"]), getTenantPayments);
+router.post("/payments", requireAuthentication(["TENANT"]), submitTenantPayment);
 
 // ---------------------------- Maintenance
 router.get("/maintenance-requests", requireAuthentication(["TENANT"]), getTenantMaintenanceRequests);
@@ -50,7 +53,7 @@ router.get("/browse-properties", requireAuthentication(["TENANT"]), browseApprov
 router.get("/properties/:propertyId", requireAuthentication(["TENANT"]), getPropertyDetailsForTenant);
 
 // ---------------------------- Applications
-router.post("/applications/:unitId", requireAuthentication(["TENANT"]), submitTenantApplication);
+router.post("/applications/:unitId", requireAuthentication(["TENANT"]), uploadTenantDocuments, handleTenantDocumentUploadError, submitTenantApplication);
 router.get("/applications", requireAuthentication(["TENANT"]), getTenantApplications);
 
 // ---------------------------- Messages

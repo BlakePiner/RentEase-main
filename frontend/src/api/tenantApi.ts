@@ -462,8 +462,12 @@ export interface ApplicationFormData {
 }
 
 // Application API functions
-export const submitTenantApplicationRequest = async (unitId: string, applicationData: ApplicationFormData) => {
-  const response = await privateApi.post(`/tenant/applications/${unitId}`, applicationData);
+export const submitTenantApplicationRequest = async (unitId: string, applicationData: ApplicationFormData | FormData) => {
+  const response = await privateApi.post(`/tenant/applications/${unitId}`, applicationData, {
+    headers: {
+      'Content-Type': applicationData instanceof FormData ? 'multipart/form-data' : 'application/json'
+    }
+  });
   return response;
 };
 
@@ -480,4 +484,30 @@ export const downloadLeasePDF = async (leaseId: string): Promise<Blob> => {
     responseType: 'blob'
   });
   return response.data;
+};
+
+// Submit tenant payment (sandbox)
+export interface TenantPaymentRequest {
+  amount: number;
+  method: string;
+  note?: string;
+}
+
+export interface TenantPaymentResponse {
+  message: string;
+  payment: {
+    id: string;
+    amount: number;
+    method: string;
+    status: string;
+    providerTxnId: string;
+    paidAt: string;
+    note: string;
+  };
+  sandbox: boolean;
+}
+
+export const submitTenantPayment = async (paymentData: TenantPaymentRequest): Promise<{ data: TenantPaymentResponse }> => {
+  const response = await privateApi.post<TenantPaymentResponse>("/tenant/payments", paymentData);
+  return response;
 };

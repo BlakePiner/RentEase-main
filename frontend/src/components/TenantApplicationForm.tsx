@@ -85,29 +85,7 @@ const TenantApplicationForm = ({ unit, propertyTitle, onSuccess, onCancel }: Ten
       [fileType]: file
     }));
     
-    // In a real app, you would upload to cloud storage here
-    // For now, we'll just simulate the upload
-    const fakeUrl = `https://example.com/uploads/${file.name}`;
-    
-    switch (fileType) {
-      case 'idImage':
-        handleInputChange('idImageUrl', fakeUrl);
-        break;
-      case 'selfie':
-        handleInputChange('selfieUrl', fakeUrl);
-        break;
-      case 'nbiClearance':
-        handleInputChange('nbiClearanceUrl', fakeUrl);
-        break;
-      case 'biodata':
-        handleInputChange('biodataUrl', fakeUrl);
-        break;
-      case 'proofOfIncome':
-        handleInputChange('proofOfIncomeUrl', fakeUrl);
-        break;
-    }
-    
-    toast.success(`${file.name} uploaded successfully`);
+    toast.success(`${file.name} selected for upload`);
   };
 
   const addReference = () => {
@@ -133,13 +111,43 @@ const TenantApplicationForm = ({ unit, propertyTitle, onSuccess, onCancel }: Ten
         ref.name.trim() && ref.relation.trim() && ref.contact.trim()
       );
       
-      const applicationData: ApplicationFormData = {
-        ...formData,
-        characterReferences: validReferences.length > 0 ? validReferences : null,
-        monthlyIncome: formData.monthlyIncome || 0
-      };
+      // Create FormData for file upload
+      const formDataToSend = new FormData();
+      
+      // Add form data
+      formDataToSend.append('fullName', formData.fullName);
+      formDataToSend.append('birthdate', formData.birthdate);
+      formDataToSend.append('governmentIdNumber', formData.governmentIdNumber);
+      formDataToSend.append('employmentStatus', formData.employmentStatus);
+      formDataToSend.append('employerName', formData.employerName);
+      formDataToSend.append('monthlyIncome', (formData.monthlyIncome || 0).toString());
+      formDataToSend.append('previousLandlordName', formData.previousLandlordName);
+      formDataToSend.append('previousLandlordContact', formData.previousLandlordContact);
+      formDataToSend.append('rentalHistoryNotes', formData.rentalHistoryNotes);
+      formDataToSend.append('characterReferences', JSON.stringify(validReferences.length > 0 ? validReferences : null));
+      formDataToSend.append('isSmoker', formData.isSmoker.toString());
+      formDataToSend.append('hasPets', formData.hasPets.toString());
+      formDataToSend.append('petTypes', formData.petTypes);
+      formDataToSend.append('otherLifestyle', JSON.stringify(formData.otherLifestyle));
+      
+      // Add uploaded files
+      if (uploadedFiles.idImage) {
+        formDataToSend.append('idImage', uploadedFiles.idImage);
+      }
+      if (uploadedFiles.selfie) {
+        formDataToSend.append('selfie', uploadedFiles.selfie);
+      }
+      if (uploadedFiles.nbiClearance) {
+        formDataToSend.append('nbiClearance', uploadedFiles.nbiClearance);
+      }
+      if (uploadedFiles.biodata) {
+        formDataToSend.append('biodata', uploadedFiles.biodata);
+      }
+      if (uploadedFiles.proofOfIncome) {
+        formDataToSend.append('proofOfIncome', uploadedFiles.proofOfIncome);
+      }
 
-      await submitTenantApplicationRequest(unit.id, applicationData);
+      await submitTenantApplicationRequest(unit.id, formDataToSend);
       
       toast.success("Application submitted successfully!");
       onSuccess();

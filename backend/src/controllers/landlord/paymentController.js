@@ -505,7 +505,7 @@ export const getLeasePaymentHistory = async (req, res) => {
 export const sendPaymentReminder = async (req, res) => {
   try {
     const { leaseId } = req.params;
-    const { message, reminderType = 'GENERAL' } = req.body;
+    const { message, reminderType = 'GENERAL' } = req.body || {};
     const ownerId = req.user?.id;
 
     if (!ownerId) {
@@ -549,29 +549,10 @@ export const sendPaymentReminder = async (req, res) => {
       return res.status(404).json({ message: "Lease not found" });
     }
 
-    // Get pending payments for this lease
-    const pendingPayments = await prisma.payment.findMany({
-      where: {
-        leaseId: leaseId,
-        status: 'PENDING'
-      },
-      orderBy: { createdAt: 'asc' }
-    });
-
-    if (pendingPayments.length === 0) {
-      return res.status(400).json({ message: "No pending payments found for this lease" });
-    }
-
-    // Calculate total pending amount
-    const totalPending = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
-
-    // Create reminder message
+    // Create reminder message (no conditions - just send like inquiry system)
     const defaultMessage = `Hello ${lease.tenant.firstName || 'Tenant'},
 
-This is a friendly reminder that you have pending rent payment(s) for ${lease.unit.property.title} - ${lease.unit.label}.
-
-Total Pending Amount: $${totalPending.toFixed(2)}
-Number of Pending Payments: ${pendingPayments.length}
+This is a friendly reminder about your rent payment for ${lease.unit.property.title} - ${lease.unit.label}.
 
 Please make your payment as soon as possible to avoid any late fees.
 
@@ -580,25 +561,69 @@ Thank you for your prompt attention to this matter.
 Best regards,
 Your Landlord`;
 
-    const reminderMessage = message || defaultMessage;
+    const reminderContent = message || defaultMessage;
 
-    // In a real implementation, you would:
-    // 1. Send email via email service
-    // 2. Send SMS if phone number available
-    // 3. Log the reminder in a notifications table
-    // 4. Update tenant communication history
+    // Create a pre-message in the conversation between landlord and tenant
+    // First, find or create a conversation between the landlord and tenant
+    let conversation = await prisma.conversation.findFirst({
+      where: {
+        OR: [
+          { userAId: ownerId, userBId: lease.tenant.id },
+          { userAId: lease.tenant.id, userBId: ownerId }
+        ]
+      }
+    });
 
-    // For now, we'll just return success
+    if (!conversation) {
+      // Create new conversation if it doesn't exist
+      conversation = await prisma.conversation.create({
+        data: {
+          userAId: ownerId,
+          userBId: lease.tenant.id,
+          title: `Conversation with ${lease.tenant.firstName} ${lease.tenant.lastName}`
+        }
+      });
+    }
+
+    // Create the payment reminder message
+    const reminderMessage = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        senderId: ownerId,
+        content: reminderContent,
+        isRead: false
+      }
+    });
+
+    // Update conversation's updatedAt timestamp
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() }
+    });
+
+    // Create notification for the tenant
+    try {
+      await prisma.notification.create({
+        data: {
+          userId: lease.tenant.id,
+          type: "PAYMENT_REMINDER",
+          message: `Payment Reminder: Your landlord has sent you a payment reminder for ${lease.unit.property.title} - ${lease.unit.label}. Please check your messages.`,
+          status: "UNREAD"
+        }
+      });
+    } catch (notificationError) {
+      console.error("Error creating payment reminder notification:", notificationError);
+    }
+
     return res.json({
       message: "Payment reminder sent successfully",
       reminder: {
+        id: reminderMessage.id,
+        conversationId: conversation.id,
         leaseId: lease.id,
         tenantName: `${lease.tenant.firstName} ${lease.tenant.lastName}`,
         tenantEmail: lease.tenant.email,
-        pendingAmount: totalPending,
-        pendingCount: pendingPayments.length,
         reminderType: reminderType,
-        message: reminderMessage,
         sentAt: new Date()
       }
     });
