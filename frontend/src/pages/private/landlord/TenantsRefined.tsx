@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Users,
   Search,
@@ -25,6 +25,9 @@ import {
   UserX,
   Plus,
   Check,
+  UserIcon,
+  XCircle,
+  CreditCard,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,6 +78,7 @@ interface TenantItem {
 }
 
 const TenantsRefined = () => {
+  const navigate = useNavigate();
   const [tenantData, setTenantData] = useState<TenantItem[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +103,10 @@ const TenantsRefined = () => {
   const [selectedApplicationForLease, setSelectedApplicationForLease] = useState<any>(null);
   const [availableLeases, setAvailableLeases] = useState<any[]>([]);
   const [leaseLoading, setLeaseLoading] = useState(false);
+  
+  // Tenant details modal
+  const [showTenantDetailsModal, setShowTenantDetailsModal] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<TenantItem | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -143,6 +151,11 @@ const TenantsRefined = () => {
     setShowApplicationReview(true);
   };
 
+  const handleViewTenantDetails = (tenant: TenantItem) => {
+    setSelectedTenant(tenant);
+    setShowTenantDetailsModal(true);
+  };
+
   const handleApplicationUpdate = async () => {
     // Refresh data after application update
     try {
@@ -159,10 +172,8 @@ const TenantsRefined = () => {
   };
 
   const handleMessageTenant = (tenant: any) => {
-    // Navigate to messages with this tenant
-    // For now, we'll just show a toast - you can implement the actual messaging later
-    toast.success(`Opening conversation with ${tenant.firstName} ${tenant.lastName}`);
-    // TODO: Navigate to /landlord/messages with tenant pre-selected
+    // Navigate to messages with this tenant pre-selected
+    navigate(`/landlord/messages?tenantId=${tenant.tenant.id}&tenantName=${encodeURIComponent(tenant.tenant.firstName + ' ' + tenant.tenant.lastName)}`);
   };
 
   const handleDeleteTenant = (tenant: any) => {
@@ -647,12 +658,13 @@ const TenantsRefined = () => {
                       
                       {item.type === 'TENANT' && (
                         <>
-                          <Link to={`/landlord/tenants/${tenant.id}`}>
-                            <Button variant="outline">
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
-                            </Button>
-                          </Link>
+                          <Button 
+                            variant="outline"
+                            onClick={() => handleViewTenantDetails(item)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
+                          </Button>
                           <Button
                             onClick={() => handleMessageTenant(item)}
                             variant="outline"
@@ -785,6 +797,246 @@ const TenantsRefined = () => {
               Cancel
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Tenant Details Modal */}
+      <Dialog open={showTenantDetailsModal} onOpenChange={setShowTenantDetailsModal}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserIcon className="h-5 w-5" />
+              Tenant Profile
+            </DialogTitle>
+            <DialogDescription>
+              View detailed information about this tenant.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedTenant && (
+            <div className="space-y-6">
+              {/* Header Section */}
+              <div className="relative overflow-hidden rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 shadow-lg">
+                <div className="absolute inset-0 pointer-events-none">
+                  <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 blur-2xl opacity-70" />
+                  <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-r from-purple-100 to-blue-100 blur-3xl opacity-70" />
+                </div>
+
+                <div className="relative p-6 flex flex-col sm:flex-row items-center gap-6">
+                  <div className="relative">
+                    <Avatar className="h-24 w-24 ring-4 ring-white shadow-lg">
+                      <AvatarImage src={selectedTenant.tenant.avatarUrl} />
+                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-blue-500 text-white text-xl font-semibold">
+                        {selectedTenant.tenant.firstName[0]}{selectedTenant.tenant.lastName[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+
+                  <div className="flex-1 text-center sm:text-left">
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                      {selectedTenant.tenant.firstName} {selectedTenant.tenant.lastName}
+                    </h1>
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mt-1">
+                      <div className="flex items-center gap-1 text-sm text-gray-600">
+                        <Mail size={14} />
+                        <span>{selectedTenant.tenant.email}</span>
+                      </div>
+                      <div className="w-1 h-1 rounded-full bg-gray-400"></div>
+                      <div className="text-sm text-gray-600 capitalize">
+                        Tenant
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mt-2">
+                      <Badge
+                        variant="default"
+                        className="text-xs"
+                      >
+                        Active
+                      </Badge>
+                      <Badge
+                        variant="default"
+                        className="text-xs"
+                      >
+                        Verified
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
+                {/* Account Information Card */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-purple-50">
+                      <Shield className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <h2 className="font-semibold text-gray-900 text-lg">
+                      Account Information
+                    </h2>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Email
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 flex items-center justify-between">
+                        {selectedTenant.tenant.email}
+                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                          Verified
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Phone Number
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedTenant.tenant.phoneNumber || 'Not provided'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Role
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 capitalize">
+                        Tenant
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Account Status
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900 flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-green-600">Active</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activity Information Card */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-50">
+                      <Clock className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <h2 className="font-semibold text-gray-900 text-lg">
+                      Activity Information
+                    </h2>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <Calendar size={14} />
+                        Joined
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {new Date(selectedTenant.tenant.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <Building size={14} />
+                        Current Property
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedTenant.unit ? (
+                          <div>
+                            <div className="font-medium">{selectedTenant.unit.property.title}</div>
+                            <div className="text-sm text-gray-600">Unit {selectedTenant.unit.label}</div>
+                            <div className="text-sm text-gray-600">{selectedTenant.unit.property.address}</div>
+                          </div>
+                        ) : 'No current property'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <DollarSign size={14} />
+                        Monthly Rent
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedTenant.unit ? `₱${selectedTenant.unit.targetPrice.toLocaleString()}` : 'Not set'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                        <CreditCard size={14} />
+                        Lease Status
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedTenant.currentLease ? 'Active Lease' : 'No active lease'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Risk Assessment Section */}
+              {selectedTenant.riskAssessment && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 md:p-6 space-y-5 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-50">
+                      <Shield className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <h2 className="font-semibold text-gray-900 text-lg">
+                      Risk Assessment
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        Risk Level
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        <Badge 
+                          variant={
+                            selectedTenant.riskAssessment.riskLevel === 'LOW' ? 'default' :
+                            selectedTenant.riskAssessment.riskLevel === 'MEDIUM' ? 'secondary' : 'destructive'
+                          }
+                        >
+                          {selectedTenant.riskAssessment.riskLevel}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        AI Risk Score
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedTenant.riskAssessment.aiRiskScore}/100
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedTenant.riskAssessment.aiScreeningSummary && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-500">
+                        AI Screening Summary
+                      </label>
+                      <div className="px-4 py-3 rounded-xl bg-gray-50 text-gray-900">
+                        {selectedTenant.riskAssessment.aiScreeningSummary}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

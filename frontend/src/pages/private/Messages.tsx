@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { 
@@ -25,11 +26,13 @@ import {
   deleteConversationRequest,
   deleteMessageRequest,
   getMessageStatsRequest,
+  createOrGetConversationRequest,
   type Conversation,
   type Message,
   type ConversationWithMessages,
   type MessageStats
 } from "@/api/landlordMessageApi";
+import { getLandlordTenantsRequest, type TenantManagementItem } from "@/api/landlordTenantApi";
 import {
   getTenantConversationsRequest,
   getTenantConversationMessagesRequest,
@@ -47,6 +50,7 @@ import { toast } from "sonner";
 
 const Messages = () => {
   const { user } = useAuthStore();
+  const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -114,7 +118,50 @@ const Messages = () => {
             ? getMessageStatsRequest({ signal: controller.signal })
             : getTenantMessageStatsRequest({ signal: controller.signal }),
         ]);
-        setConversations(conversationsRes.data);
+        
+        let conversations = conversationsRes.data;
+        
+        // Auto-create conversations for active tenants (landlord only)
+        if (isLandlord) {
+          try {
+            const tenantsRes = await getLandlordTenantsRequest({ signal: controller.signal });
+            const activeTenants = tenantsRes.data.filter((item: TenantManagementItem) => 
+              item.type === 'TENANT' && item.tenant
+            );
+            
+            // Create conversations for tenants that don't have existing conversations
+            const conversationPromises = activeTenants.map(async (tenant: TenantManagementItem) => {
+              const existingConversation = conversations.find(conv => 
+                conv.otherUser && conv.otherUser.id === tenant.tenant.id
+              );
+              
+              if (!existingConversation) {
+                try {
+                  const response = await createOrGetConversationRequest({
+                    otherUserId: tenant.tenant.id
+                  });
+                  return response.data;
+                } catch (error) {
+                  console.warn(`Failed to create conversation with tenant ${tenant.tenant.id}:`, error);
+                  return null;
+                }
+              }
+              return null;
+            });
+            
+            const newConversations = await Promise.all(conversationPromises);
+            const validNewConversations = newConversations.filter(conv => conv !== null);
+            
+            if (validNewConversations.length > 0) {
+              conversations = [...validNewConversations, ...conversations];
+              console.log(`✅ Auto-created ${validNewConversations.length} conversations for active tenants`);
+            }
+          } catch (error) {
+            console.error('Error auto-creating conversations:', error);
+          }
+        }
+        
+        setConversations(conversations);
         setStats(statsRes.data);
       } catch (err: any) {
         if (err.name !== "AbortError") {
@@ -130,6 +177,71 @@ const Messages = () => {
     return () => controller.abort();
   }, [user]);
 
+  // Auto-select conversation based on URL parameters
+  useEffect(() => {
+    const tenantId = searchParams.get('tenantId');
+    const tenantName = searchParams.get('tenantName');
+    
+    if (tenantId && conversations.length > 0 && !selectedConversation && user?.role === 'LANDLORD') {
+      // Look for existing conversation with this tenant
+      const existingConversation = conversations.find(conv => 
+        conv.otherUser && conv.otherUser.id === tenantId
+      );
+      
+      if (existingConversation) {
+        setSelectedConversation(existingConversation);
+        setShowMobileChat(true);
+      } else if (tenantName) {
+        // Create a new conversation with the tenant
+        const createConversation = async () => {
+          try {
+            const response = await createOrGetConversationRequest({
+              otherUserId: tenantId
+            });
+            
+            // Add the new conversation to the list
+            const newConversation = response.data;
+            setConversations(prev => [newConversation, ...prev]);
+            
+            // Select the new conversation
+            setSelectedConversation(newConversation);
+            setShowMobileChat(true);
+            
+            toast.success(`Started conversation with ${tenantName}`);
+          } catch (error: any) {
+            console.error('Error creating conversation:', error);
+            toast.error('Failed to start conversation');
+            
+            // Fallback: create a virtual conversation
+            const virtualConversation: Conversation = {
+              id: `virtual-${tenantId}`,
+              otherUser: {
+                id: tenantId,
+                firstName: tenantName.split(' ')[0] || '',
+                lastName: tenantName.split(' ').slice(1).join(' ') || '',
+                email: '',
+                avatarUrl: null,
+                role: 'TENANT',
+                fullName: tenantName
+              },
+              lastMessage: null,
+              unreadCount: 0,
+              updatedAt: new Date().toISOString(),
+              createdAt: new Date().toISOString(),
+              title: `Chat with ${tenantName}`,
+              timeAgo: 'now'
+            };
+            setSelectedConversation(virtualConversation);
+            setShowMobileChat(true);
+          }
+        };
+        
+        createConversation();
+      }
+    }
+  }, [conversations, searchParams, selectedConversation, user]);
+
+
   // Fetch messages when conversation is selected
   useEffect(() => {
     if (!selectedConversation || !user) {
@@ -137,8 +249,8 @@ const Messages = () => {
       return;
     }
 
-    // Don't fetch messages for virtual conversations (id is null)
-    if (!selectedConversation.id) {
+    // Don't fetch messages for virtual conversations
+    if (!selectedConversation.id || selectedConversation.id.startsWith('virtual-')) {
       setMessages([]);
       return;
     }
@@ -175,10 +287,19 @@ const Messages = () => {
       let response;
 
       if (isLandlord) {
-        response = await sendMessageRequest({
-          conversationId: selectedConversation.id!,
-          content: messageContent,
-        });
+        if (selectedConversation.id && !selectedConversation.id.startsWith('virtual-')) {
+          // Existing conversation
+          response = await sendMessageRequest({
+            conversationId: selectedConversation.id,
+            content: messageContent,
+          });
+        } else {
+          // New conversation - send message with recipientId
+          response = await sendMessageRequest({
+            recipientId: selectedConversation.otherUser.id,
+            content: messageContent,
+          });
+        }
       } else {
         // For tenants, handle both existing conversations and new conversations with landlord
         if (selectedConversation.id) {
@@ -283,9 +404,9 @@ const Messages = () => {
   };
 
   const filteredConversations = conversations.filter(conversation =>
-    conversation.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conversation.otherUser.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    conversation.otherUser.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (conversation.title?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (conversation.otherUser.fullName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+    (conversation.otherUser.email?.toLowerCase() || '').includes(searchQuery.toLowerCase())
   );
 
   const formatTime = (dateString: string) => {
@@ -384,13 +505,13 @@ const Messages = () => {
                 >
                   <div className="flex items-start gap-3">
                     <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-sky-500 flex items-center justify-center text-white font-medium">
-                      {conversation.otherUser.fullName.charAt(0).toUpperCase()}
+                      {(conversation.otherUser.fullName || 'U').charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium text-gray-900 truncate">
-                            {conversation.title}
+                            {conversation.title || 'Untitled Conversation'}
                           </h3>
                           {user?.role === "LANDLORD" && conversation.isInquiry && (
                             <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full font-medium">
@@ -469,11 +590,11 @@ const Messages = () => {
                     <ArrowLeft className="h-4 w-4" />
                   </Button>
                   <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-500 to-sky-500 flex items-center justify-center text-white font-medium text-sm">
-                    {selectedConversation.otherUser.fullName.charAt(0).toUpperCase()}
+                    {(selectedConversation.otherUser.fullName || 'U').charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h2 className="font-medium text-gray-900">{selectedConversation.title}</h2>
-                    <p className="text-sm text-gray-600">{selectedConversation.otherUser.role}</p>
+                    <h2 className="font-medium text-gray-900">{selectedConversation.title || 'Untitled Conversation'}</h2>
+                    <p className="text-sm text-gray-600">{selectedConversation.otherUser.role || 'User'}</p>
                   </div>
                 </div>
                 {(user?.role === "LANDLORD" || (user?.role === "TENANT" && selectedConversation.id !== null && selectedConversation.isInquiry)) && (

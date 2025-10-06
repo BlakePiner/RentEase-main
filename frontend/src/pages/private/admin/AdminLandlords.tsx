@@ -339,7 +339,7 @@ const AdminLandlords = () => {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleViewProfile(user)}>
+                    <Button variant="outline" size="sm" onClick={() => handleViewProfile(landlord)}>
                       <Eye className="h-4 w-4 mr-2" />
                       View
                     </Button>

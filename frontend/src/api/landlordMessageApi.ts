@@ -78,7 +78,8 @@ export interface MessageStats {
 }
 
 export interface SendMessageData {
-  conversationId: string;
+  conversationId?: string;
+  recipientId?: string;
   content: string;
 }
 
