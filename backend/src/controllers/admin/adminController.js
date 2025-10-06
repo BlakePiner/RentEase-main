@@ -864,6 +864,91 @@ export const updatePropertyRequestStatus = async (req, res) => {
   }
 };
 
+// ---------------------------------------------- DELETE PROPERTY REQUEST ----------------------------------------------
+export const deletePropertyRequest = async (req, res) => {
+  try {
+    const adminId = req.user?.id;
+    const { listingId } = req.params;
+    
+    if (!adminId) {
+      return res.status(401).json({ message: "Unauthorized: admin not found" });
+    }
+
+    if (!listingId) {
+      return res.status(400).json({ message: "Listing ID is required" });
+    }
+
+    // Get the listing with related data
+    const listing = await prisma.listing.findUnique({
+      where: { id: listingId },
+      include: {
+        unit: {
+          include: {
+            property: {
+              select: {
+                title: true,
+                ownerId: true
+              }
+            }
+          }
+        },
+        landlord: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    if (!listing) {
+      return res.status(404).json({ message: "Listing not found" });
+    }
+
+    // If the listing is ACTIVE, we need to remove it from tenant browse
+    // by updating the unit's listedAt field to null
+    if (listing.status === 'ACTIVE') {
+      await prisma.unit.update({
+        where: { id: listing.unitId },
+        data: { listedAt: null }
+      });
+    }
+
+    // Delete the listing
+    await prisma.listing.delete({
+      where: { id: listingId }
+    });
+
+    // Create notification for landlord
+    const notificationMessage = `Your listing request for ${listing.unit.property.title} - ${listing.unit.label} has been deleted by admin.`;
+
+    await prisma.notification.create({
+      data: {
+        userId: listing.landlordId,
+        type: 'LISTING',
+        message: notificationMessage,
+        status: 'UNREAD'
+      }
+    });
+
+    res.json({
+      message: "Property request deleted successfully",
+      deletedListing: {
+        id: listing.id,
+        status: listing.status,
+        propertyTitle: listing.unit.property.title,
+        unitLabel: listing.unit.label,
+        landlordName: `${listing.landlord.firstName} ${listing.landlord.lastName}`
+      }
+    });
+
+  } catch (error) {
+    console.error("Error deleting property request:", error);
+    res.status(500).json({ message: "Failed to delete property request" });
+  }
+};
+
 // ---------------------------------------------- GET ALL PROPERTIES ----------------------------------------------
 export const getAllProperties = async (req, res) => {
   try {

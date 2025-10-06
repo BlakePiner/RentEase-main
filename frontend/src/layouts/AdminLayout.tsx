@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Database,
   Activity,
+  Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -26,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { logoutRequest } from "@/api/authApi";
-import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead, type Notification } from "@/api/notificationApi";
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, type Notification } from "@/api/notificationApi";
 
 // Sidebar configuration for admin
 const sidebarConfig = [
@@ -362,6 +363,24 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
     }
   };
 
+  // Handle delete notification
+  const handleDeleteNotification = async (notificationId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent notification click
+    try {
+      await deleteNotification(notificationId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      // Decrease unread count if the deleted notification was unread
+      const deletedNotification = notifications.find(n => n.id === notificationId);
+      if (deletedNotification?.status === 'UNREAD') {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      toast.success("Notification deleted");
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      toast.error("Failed to delete notification");
+    }
+  };
+
   // Breadcrumb logic
   useEffect(() => {
     const generateBreadcrumbs = () => {
@@ -514,18 +533,19 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
                       </div>
                     ) : (
                       notifications.map((notification) => (
-                        <Link
+                        <div
                           key={notification.id}
-                          to={notification.link}
-                          onClick={() => handleNotificationClick(notification)}
+                          className={cn(
+                            "p-3 sm:p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 relative group",
+                            notification.status === "UNREAD" && "bg-purple-50"
+                          )}
                         >
-                          <div
-                            className={cn(
-                              "p-3 sm:p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0",
-                              notification.status === "UNREAD" && "bg-purple-50"
-                            )}
+                          <Link
+                            to={notification.link}
+                            onClick={() => handleNotificationClick(notification)}
+                            className="block"
                           >
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 pr-8">
                               {notification.status === "UNREAD" && (
                                 <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0" />
                               )}
@@ -545,8 +565,15 @@ const Header = ({ onMobileMenuClick }: { onMobileMenuClick: () => void }) => {
                                 </p>
                               </div>
                             </div>
-                          </div>
-                        </Link>
+                          </Link>
+                          <button
+                            onClick={(e) => handleDeleteNotification(notification.id, e)}
+                            className="absolute top-3 right-3 p-1 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
+                            title="Delete notification"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       ))
                     )}
                   </div>

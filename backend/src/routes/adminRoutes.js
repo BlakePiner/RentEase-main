@@ -8,6 +8,7 @@ import {
   getSystemAnalytics,
   getPropertyRequests,
   updatePropertyRequestStatus,
+  deletePropertyRequest,
   getAllProperties,
   getAllPayments,
   getPaymentAnalytics,
@@ -31,6 +32,7 @@ router.get("/tenants/:tenantId/leases", requireAuthentication(["ADMIN"]), getTen
 // ---------------------------- Property Requests
 router.get("/property-requests", requireAuthentication(["ADMIN"]), getPropertyRequests);      // get all property listing requests
 router.patch("/property-requests/:listingId", requireAuthentication(["ADMIN"]), updatePropertyRequestStatus); // approve/reject listing request
+router.delete("/property-requests/:listingId", requireAuthentication(["ADMIN"]), deletePropertyRequest); // delete property request
 
 // ---------------------------- Properties
 router.get("/properties", requireAuthentication(["ADMIN"]), getAllProperties);               // get all properties created by landlords

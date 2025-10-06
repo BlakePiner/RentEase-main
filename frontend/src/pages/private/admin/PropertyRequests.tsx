@@ -14,7 +14,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Clock,
-  Ban
+  Ban,
+  Trash2
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { 
   getPropertyRequestsRequest, 
   updatePropertyRequestStatusRequest,
+  deletePropertyRequestRequest,
   type PropertyRequest,
   type PropertyRequestsResponse 
 } from "@/api/adminApi";
@@ -84,6 +86,24 @@ const PropertyRequests = () => {
     } catch (err: any) {
       console.error("Error updating request status:", err);
       toast.error("Failed to update request status");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteRequest = async (listingId: string) => {
+    if (!confirm("Are you sure you want to delete this property request? This action cannot be undone.")) {
+      return;
+    }
+
+    setActionLoading(listingId);
+    try {
+      await deletePropertyRequestRequest(listingId);
+      toast.success("Property request deleted successfully");
+      fetchRequests(); // Refresh the list
+    } catch (err: any) {
+      console.error("Error deleting request:", err);
+      toast.error("Failed to delete property request");
     } finally {
       setActionLoading(null);
     }
@@ -391,6 +411,16 @@ const PropertyRequests = () => {
                     )}
                   </DialogContent>
                 </Dialog>
+
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDeleteRequest(request.id)}
+                  disabled={actionLoading === request.id}
+                  title="Delete property request"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
 
                 {request.status === 'PENDING' && (
                   <>

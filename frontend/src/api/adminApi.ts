@@ -253,6 +253,11 @@ export const updatePropertyRequestStatusRequest = async (listingId: string, data
   return response;
 };
 
+export const deletePropertyRequestRequest = async (listingId: string) => {
+  const response = await privateApi.delete(`/admin/property-requests/${listingId}`);
+  return response;
+};
+
 // All Properties Types
 export interface Property {
   id: string;
