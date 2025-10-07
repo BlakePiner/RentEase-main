@@ -28,6 +28,7 @@ import {
   UserIcon,
   XCircle,
   CreditCard,
+  Bot,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { getLandlordTenantsRequest, getTenantStatsRequest, removeTenantRequest, getAvailableLeasesForTenantRequest, assignLeaseToTenantRequest } from "@/api/landlordTenantApi";
 import TenantApplicationReview from "@/components/TenantApplicationReview";
+import AutomatedScreeningModal from "@/components/AutomatedScreeningModal";
 import { toast } from "sonner";
 
 interface TenantItem {
@@ -107,6 +109,10 @@ const TenantsRefined = () => {
   // Tenant details modal
   const [showTenantDetailsModal, setShowTenantDetailsModal] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<TenantItem | null>(null);
+  
+  // Automated screening modal
+  const [showScreeningModal, setShowScreeningModal] = useState(false);
+  const [selectedApplicationForScreening, setSelectedApplicationForScreening] = useState<any>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -149,6 +155,43 @@ const TenantsRefined = () => {
   const handleApplicationReview = (application: any) => {
     setSelectedApplication(application);
     setShowApplicationReview(true);
+  };
+
+  const handleAutomateApplication = (application: any) => {
+    setSelectedApplicationForScreening(application);
+    setShowScreeningModal(true);
+  };
+
+  const handleScreeningApprove = async (application: any) => {
+    try {
+      // TODO: Implement actual approval logic with lease assignment
+      console.log("Approving application with lease:", application.selectedLease);
+      toast.success("Application approved successfully");
+      setShowScreeningModal(false);
+      setSelectedApplicationForScreening(null);
+      // Refresh data
+      const tenantsRes = await getLandlordTenantsRequest();
+      setTenantData(tenantsRes.data);
+    } catch (error) {
+      console.error("Error approving application:", error);
+      toast.error("Failed to approve application");
+    }
+  };
+
+  const handleScreeningReject = async (application: any) => {
+    try {
+      // TODO: Implement actual rejection logic
+      console.log("Rejecting application:", application);
+      toast.success("Application rejected");
+      setShowScreeningModal(false);
+      setSelectedApplicationForScreening(null);
+      // Refresh data
+      const tenantsRes = await getLandlordTenantsRequest();
+      setTenantData(tenantsRes.data);
+    } catch (error) {
+      console.error("Error rejecting application:", error);
+      toast.error("Failed to reject application");
+    }
   };
 
   const handleViewTenantDetails = (tenant: TenantItem) => {
@@ -622,6 +665,14 @@ const TenantsRefined = () => {
                             <Eye className="h-4 w-4 mr-2" />
                             Review Application
                           </Button>
+                          <Button
+                            onClick={() => handleAutomateApplication(item)}
+                            variant="outline"
+                            className="border-green-600 text-green-600 hover:bg-green-50"
+                          >
+                            <Bot className="h-4 w-4 mr-2" />
+                            Automate Application
+                          </Button>
                           
                           {/* Lease is now pre-assigned during creation, so no separate assign button needed */}
                         </>
@@ -1039,6 +1090,18 @@ const TenantsRefined = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Automated Screening Modal */}
+      <AutomatedScreeningModal
+        application={selectedApplicationForScreening}
+        isOpen={showScreeningModal}
+        onClose={() => {
+          setShowScreeningModal(false);
+          setSelectedApplicationForScreening(null);
+        }}
+        onApprove={handleScreeningApprove}
+        onReject={handleScreeningReject}
+      />
     </div>
   );
 };
