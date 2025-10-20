@@ -182,7 +182,7 @@ const TenantManagement = () => {
     });
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
       minimumFractionDigits: 0,
@@ -318,7 +318,7 @@ const TenantManagement = () => {
           <Card>
             <CardContent className="flex items-center p-6">
               <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mr-4">
-                <DollarSign className="h-6 w-6 text-purple-600" />
+                <span className="text-2xl font-bold text-purple-600">₱</span>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Revenue</p>

@@ -61,7 +61,7 @@ export default function Features() {
           />
           
           <FeatureSection 
-            icon={<div className="text-2xl font-bold text-teal-500">$</div>}
+            icon={<div className="text-2xl font-bold text-teal-500">₱</div>}
             title="No Hidden Fees"
             description="Transparent pricing with all costs shown upfront. What you see is what you pay."
           />

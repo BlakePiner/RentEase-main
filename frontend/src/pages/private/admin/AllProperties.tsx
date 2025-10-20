@@ -634,7 +634,7 @@ const AllProperties = () => {
                           </Badge>
                         </div>
                         <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <DollarSign size={14} />
+                          <span className="text-sm font-bold">₱</span>
                           <span>₱{unit.targetPrice.toLocaleString()}</span>
                         </div>
                       </div>

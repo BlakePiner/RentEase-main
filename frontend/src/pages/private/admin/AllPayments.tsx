@@ -5,7 +5,6 @@ import {
   Filter, 
   MoreVertical, 
   Eye, 
-  DollarSign,
   Calendar,
   User,
   Building2,
@@ -228,7 +227,7 @@ const AllPayments = () => {
             <CardContent className="p-6">
               <div className="flex items-center">
                 <div className="p-2 rounded-lg bg-green-50">
-                  <DollarSign className="h-6 w-6 text-green-600" />
+                  <span className="text-2xl font-bold text-green-600">₱</span>
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Total Revenue</p>
@@ -333,7 +332,7 @@ const AllPayments = () => {
             <CardContent className="p-6">
               <div className="flex items-center">
                 <div className="p-2 rounded-lg bg-purple-50">
-                  <Receipt className="h-6 w-6 text-purple-600" />
+                  <span className="text-2xl font-bold text-purple-600">₱</span>
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Partial Payments</p>

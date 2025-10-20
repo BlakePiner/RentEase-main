@@ -50,7 +50,7 @@ const AdminDashboard = () => {
   }, []);
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
       minimumFractionDigits: 0,
@@ -170,14 +170,13 @@ const AdminDashboard = () => {
               <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats.financial.monthlyRevenue)}</p>
               <div className="flex items-center mt-1">
-                <DollarSign className="h-4 w-4 text-green-500 mr-1" />
                 <span className="text-sm text-green-600">
                   {stats.financial.paidPayments} payments
                 </span>
               </div>
             </div>
             <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="h-6 w-6 text-green-600" />
+              <span className="text-2xl font-bold text-green-600">₱</span>
             </div>
           </div>
         </Card>
@@ -226,7 +225,7 @@ const AdminDashboard = () => {
 
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <DollarSign className="h-5 w-5 text-blue-500 mr-2" />
+                <span className="text-lg font-bold text-blue-500 mr-2">₱</span>
                 <span className="text-sm text-gray-600">Payment Success Rate</span>
               </div>
               <div className="text-right">
@@ -368,7 +367,7 @@ const AdminDashboard = () => {
               <div key={payment.id} className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <span className="text-lg font-bold text-green-600">₱</span>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">{formatCurrency(payment.amount)}</p>

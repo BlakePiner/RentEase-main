@@ -137,9 +137,9 @@ const Leases = () => {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat("en-PH", {
       style: "currency",
-      currency: "USD",
+      currency: "PHP",
       minimumFractionDigits: 0,
     }).format(amount);
   };
@@ -240,7 +240,7 @@ const Leases = () => {
                   </p>
                 </div>
                 <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-green-600" />
+                  <span className="text-2xl font-bold text-green-600">₱</span>
                 </div>
               </div>
             </CardContent>

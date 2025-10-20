@@ -294,20 +294,12 @@ const LoginForm = () => {
 
       {/* Password field */}
       <div>
-        <div className="flex justify-between items-center mb-2">
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Password
-          </label>
-          <Link
-            to="/auth/forgot-password"
-            className="text-sm text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
-          >
-            Forgot password?
-          </Link>
-        </div>
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-gray-700 mb-2"
+        >
+          Password
+        </label>
         <div className="relative">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <Lock className="h-5 w-5 text-gray-400" />
@@ -335,6 +327,14 @@ const LoginForm = () => {
               <Eye className="h-5 w-5 text-gray-400" />
             )}
           </button>
+        </div>
+        <div className="mt-2 text-right">
+          <Link
+            to="/auth/forgot-password"
+            className="text-sm text-emerald-600 hover:text-emerald-800 font-medium transition-colors"
+          >
+            Forgot password?
+          </Link>
         </div>
       </div>
 

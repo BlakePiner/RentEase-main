@@ -61,7 +61,7 @@ const AdminViewLeaseModal = ({ isOpen, onClose, tenantId, tenantName }: AdminVie
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
       minimumFractionDigits: 0,

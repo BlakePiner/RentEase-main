@@ -252,7 +252,7 @@ const HeroSection = () => {
                 
                 {/* Price */}
                 <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg">
-                  <div className="text-2xl font-bold text-gray-900">$1,850<span className="text-base font-normal">/mo</span></div>
+                  <div className="text-2xl font-bold text-gray-900">₱1,850<span className="text-base font-normal">/mo</span></div>
                 </div>
               </div>
               

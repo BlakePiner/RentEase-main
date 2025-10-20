@@ -50,7 +50,7 @@ const TenantApplicationReview = ({ application, onApplicationUpdate, onClose }: 
   const [showLeaseSelection, setShowLeaseSelection] = useState(true); // Always show lease selection
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
       minimumFractionDigits: 0,

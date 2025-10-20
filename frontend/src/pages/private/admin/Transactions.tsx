@@ -123,7 +123,7 @@ const Transactions = () => {
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-2 rounded-lg bg-green-50">
-                    <DollarSign className="h-6 w-6 text-green-600" />
+                    <span className="text-2xl font-bold text-green-600">₱</span>
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Total Revenue</p>
@@ -428,7 +428,7 @@ const Transactions = () => {
               <CardContent className="p-6">
                 <div className="flex items-center">
                   <div className="p-2 rounded-lg bg-blue-50">
-                    <DollarSign className="h-6 w-6 text-blue-600" />
+                    <span className="text-2xl font-bold text-blue-600">₱</span>
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">Average Transaction</p>

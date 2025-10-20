@@ -170,7 +170,7 @@ const TenantApplicationForm = ({ unit, propertyTitle, onSuccess, onCancel }: Ten
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-PH', {
       style: 'currency',
       currency: 'PHP',
       minimumFractionDigits: 0,
